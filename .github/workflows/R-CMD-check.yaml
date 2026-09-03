@@ -1,0 +1,111 @@
+name: R-CMD-check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The install strategy is the fragile part of this package, not the R code,
+  # so the matrix is organised around it: each job pins one strategy on one
+  # platform and fails if configure silently picks a different one.
+  check:
+    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.os }} / R ${{ matrix.config.r }} / ${{ matrix.config.strategy }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # Linux x86_64: a system install, the cheapest path.
+          - {os: ubuntu-latest,  r: 'release', strategy: system}
+          # Linux x86_64: the vendored amalgamation, i.e. the CRAN path.
+          - {os: ubuntu-latest,  r: 'release', strategy: vendor}
+          # Linux x86_64: the release library download.
+          - {os: ubuntu-latest,  r: 'release', strategy: download}
+          - {os: ubuntu-latest,  r: 'oldrel-1', strategy: system}
+          # Apple Silicon: a prebuilt osx-arm64 library exists.
+          - {os: macos-latest,   r: 'release', strategy: download}
+          # Intel macOS has no published lib asset at all, so it must vendor.
+          - {os: macos-13,       r: 'release', strategy: vendor}
+          # Windows ships only a DLL with no import library, so it must vendor.
+          - {os: windows-latest, r: 'release', strategy: vendor}
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      DOLTLITER_STRATEGY: ${{ matrix.config.strategy }}
+      # DBItest's round-trip fixtures contain non-ASCII text.
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.config.r }}
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - name: Install DoltLite (system strategy only)
+        if: matrix.config.strategy == 'system'
+        run: |
+          sudo bash -c 'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'
+          doltlite :memory: "SELECT dolt_version();"
+        shell: bash
+
+      - name: Stage the amalgamation (vendor strategy only)
+        if: matrix.config.strategy == 'vendor'
+        run: Rscript tools/vendor_amalgamation.R
+        shell: bash
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+
+      - name: Confirm the engine really is DoltLite
+        run: |
+          Rscript -e 'stopifnot(identical(doltliter::doltlite_engine(), "prolly"))' \
+                  -e 'cat("engine ok\n")'
+        shell: bash
+
+  # Guard against binding drift as DoltLite releases new versions: run the
+  # same operations through the CLI and through this package, and compare.
+  golden-file:
+    runs-on: ubuntu-latest
+    name: golden file vs the doltlite CLI
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+
+      - name: Install DoltLite (CLI and library)
+        run: sudo bash -c 'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'
+        shell: bash
+
+      - name: Install the package
+        run: R CMD INSTALL .
+        shell: bash
+
+      - name: Compare CLI output with doltliter output
+        run: Rscript tools/golden_file_check.R
+        shell: bash

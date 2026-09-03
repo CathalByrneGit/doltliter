@@ -1,0 +1,24 @@
+# Generated from Makevars.win.in by ../configure.win -- do not edit directly.
+# Chosen strategy: @DOLTLITER_STRATEGY@
+
+PKG_CPPFLAGS = @DOLTLITE_CPPFLAGS@
+PKG_CXXFLAGS =
+# mbedtls' socket/entropy layers and BCryptGenRandom need these on MinGW; the
+# MSVC #pragma comment(lib) directives inside DoltLite do not apply here.
+PKG_LIBS = @DOLTLITE_LIBS@ -lws2_32 -lbcrypt -lcrypt32
+
+OBJECTS = init.o doltlite_connection.o doltlite_result.o @DOLTLITE_OBJECTS@
+
+all: $(SHLIB)
+
+# R's implicit rules do not track header dependencies, so a change to one of
+# these would otherwise relink stale objects.
+DOLTLITER_HEADERS = doltliter.h doltlite_connection.h doltlite_result.h
+init.o: $(DOLTLITER_HEADERS)
+doltlite_connection.o: $(DOLTLITER_HEADERS)
+doltlite_result.o: $(DOLTLITER_HEADERS)
+
+doltlite_amalgamation.o: doltlite_amalgamation.c
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c doltlite_amalgamation.c -o $@
+
+.PHONY: all

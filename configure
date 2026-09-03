@@ -1,0 +1,312 @@
+#!/bin/sh
+# doltliter: locate or build libdoltlite, then write src/Makevars.
+#
+# Three tiers, tried in ascending cost (see docs/feasibility-notes.md):
+#
+#   system    an already-installed libdoltlite (pkg-config, DOLTLITE_HOME,
+#             DOLTLITE_CFLAGS/DOLTLITE_LIBS, or a common prefix)
+#   vendor    a DoltLite amalgamation staged at src/doltlite/doltlite.c
+#             (see tools/vendor_amalgamation.R) -- no network, CRAN-safe
+#   download  fetch the prebuilt release library for this OS/arch
+#
+# Override with DOLTLITER_STRATEGY=system|vendor|download|auto (default auto).
+# Pin the DoltLite version for vendor/download with DOLTLITE_VERSION.
+#
+# Deliberately no `set -e`: every failure here is a tier that did not work out,
+# and the script must fall through to the next one rather than abort.
+
+PKG=doltliter
+DEFAULT_VERSION=`cat tools/doltlite-version.txt 2>/dev/null || echo 0.50.3`
+DOLTLITE_VERSION=${DOLTLITE_VERSION-$DEFAULT_VERSION}
+DOLTLITE_VERSION=`echo "$DOLTLITE_VERSION" | sed 's/^v//' | tr -d ' \n\r'`
+STRATEGY=${DOLTLITER_STRATEGY-auto}
+RELEASE_BASE=${DOLTLITE_BASE_URL-https://github.com/dolthub/doltlite/releases/download/v${DOLTLITE_VERSION}}
+
+if [ -z "$R_HOME" ]; then
+  R_HOME=`R RHOME`
+fi
+RBIN="${R_HOME}/bin/R"
+
+CC=`"$RBIN" CMD config CC`
+CFLAGS=`"$RBIN" CMD config CFLAGS`
+CPPFLAGS=`"$RBIN" CMD config CPPFLAGS`
+LDFLAGS=`"$RBIN" CMD config LDFLAGS`
+
+LOG=config.log
+: > "$LOG"
+
+say()  { echo "$PKG: $*"; }
+note() { echo "$PKG: $*" >> "$LOG"; }
+die()  { echo "$PKG: $*" >&2; exit 1; }
+
+# ---------------------------------------------------------------- link probe --
+# Reference doltlite_init_lazy: it is public in doltlite.h and present in the
+# static archive, the shared library and the amalgamation, but absent from
+# stock SQLite. Linking it proves we found DoltLite and not libsqlite3.
+probe_dir=`mktemp -d 2>/dev/null || echo ./.doltliter-probe`
+mkdir -p "$probe_dir"
+trap 'rm -rf "$probe_dir"' EXIT
+
+cat > "$probe_dir/probe.c" <<'EOF'
+#include <doltlite.h>
+#include <stdio.h>
+int main(void) {
+  sqlite3 *db;
+  sqlite3_stmt *st;
+  const unsigned char *t;
+  void *marker = (void *) &doltlite_init_lazy;   /* DoltLite, not SQLite */
+  (void) marker;
+  if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 2;
+  if (sqlite3_prepare_v2(db, "SELECT doltlite_engine()", -1, &st, 0) != SQLITE_OK) return 3;
+  if (sqlite3_step(st) != SQLITE_ROW) return 4;
+  t = sqlite3_column_text(st, 0);
+  printf("%s\n", t ? (const char *) t : "");
+  sqlite3_finalize(st);
+  sqlite3_close(db);
+  return 0;
+}
+EOF
+
+# DoltLite bundles its own zlib and needs no external one, so the cheapest
+# candidate is tried first; the longer ones cover older layouts and archives.
+LIB_SUFFIX_CANDIDATES='-lm
+-lpthread -lm
+-lpthread -lm -lz
+-lpthread -lm -lz -ldl
+-lpthread -lm -lz -ldl -latomic'
+
+# try_link <cppflags> <libs> -> 0 on a successful compile+link
+try_link() {
+  note "--- try_link"
+  note "  CPPFLAGS: $1"
+  note "  LIBS:     $2"
+  if $CC $CPPFLAGS $1 $CFLAGS $LDFLAGS -o "$probe_dir/probe" \
+       "$probe_dir/probe.c" $2 >> "$LOG" 2>&1; then
+    note "  link: ok"
+    return 0
+  fi
+  note "  link: failed"
+  return 1
+}
+
+# try_with <cppflags> <base-libs>: walk the suffix candidates in this shell so
+# that FOUND_* assignments survive. Sets FOUND_CPPFLAGS/FOUND_LIBS/FOUND_SUFFIX.
+try_with() {
+  _cpp="$1"; _base="$2"
+  _oldifs="$IFS"
+  IFS='
+'
+  for _suffix in $LIB_SUFFIX_CANDIDATES; do
+    IFS="$_oldifs"
+    [ -n "$_suffix" ] || { IFS='
+'; continue; }
+    if try_link "$_cpp" "$_base $_suffix"; then
+      FOUND_CPPFLAGS="$_cpp"
+      FOUND_SUFFIX="$_suffix"
+      FOUND_LIBS=`echo "$_base $_suffix" | sed 's/^ *//'`
+      IFS="$_oldifs"
+      return 0
+    fi
+    IFS='
+'
+  done
+  IFS="$_oldifs"
+  return 1
+}
+
+# ------------------------------------------------------------ tier 1: system --
+find_system() {
+  if [ -n "$DOLTLITE_LIBS" ]; then
+    say "trying DOLTLITE_LIBS from the environment"
+    try_with "$DOLTLITE_CFLAGS" "$DOLTLITE_LIBS" && return 0
+  fi
+
+  if command -v pkg-config > /dev/null 2>&1 && pkg-config --exists doltlite 2>/dev/null; then
+    say "trying pkg-config doltlite"
+    try_with "`pkg-config --cflags doltlite`" "`pkg-config --libs doltlite`" && return 0
+  fi
+
+  for _p in $DOLTLITE_HOME /usr/local /usr /opt/homebrew /opt/local /opt/doltlite; do
+    [ -n "$_p" ] || continue
+    [ -f "$_p/include/doltlite.h" ] || continue
+    say "trying prefix $_p"
+    # Static first: self-contained, no runtime search path to get wrong.
+    if [ -f "$_p/lib/libdoltlite.a" ]; then
+      try_with "-I$_p/include" "$_p/lib/libdoltlite.a" && return 0
+    fi
+    try_with "-I$_p/include" "-L$_p/lib -ldoltlite" && return 0
+  done
+  return 1
+}
+
+# ------------------------------------------------------------ tier 2: vendor --
+find_vendor() {
+  [ -f src/doltlite/doltlite.c ] || return 1
+  [ -f src/doltlite/doltlite.h ] || return 1
+  say "using the vendored DoltLite amalgamation in src/doltlite"
+
+  _v="$DOLTLITE_VERSION"
+  if [ -f src/doltlite/VERSION ]; then
+    _v=`sed 's/^v//' src/doltlite/VERSION | tr -d ' \n\r'`
+  fi
+
+  # A one-line wrapper TU keeps the version string clear of Makefile quoting
+  # and keeps the 19 MB amalgamation out of R's automatic source globbing.
+  cat > src/doltlite_amalgamation.c <<EOF
+/* Generated by configure -- do not edit.
+   Compiles the vendored DoltLite amalgamation as a single translation unit,
+   stamping the release version so that dolt_version() reports it instead of
+   the literal "doltlite-amalgamation" default. */
+#ifndef DOLTLITE_VERSION
+# define DOLTLITE_VERSION "v${_v}"
+#endif
+#include "doltlite/doltlite.c"
+EOF
+
+  say "compiling the DoltLite amalgamation to validate flags (takes a minute)"
+  if ! $CC $CPPFLAGS -I./src/doltlite $CFLAGS -c src/doltlite_amalgamation.c \
+         -o "$probe_dir/doltlite_amalgamation.o" >> "$LOG" 2>&1; then
+    say "the vendored amalgamation did not compile; see $LOG"
+    return 1
+  fi
+
+  try_with "-I./src/doltlite" "$probe_dir/doltlite_amalgamation.o" || return 1
+
+  # make builds the object itself, from src/, so hand it src-relative flags.
+  VENDOR_OBJECTS="doltlite_amalgamation.o"
+  FOUND_CPPFLAGS="-I./doltlite"
+  FOUND_LIBS="$FOUND_SUFFIX"
+  return 0
+}
+
+# ---------------------------------------------------------- tier 3: download --
+detect_target() {
+  case `uname -s` in
+    Linux)  _plat=linux ;;
+    Darwin) _plat=osx ;;
+    *) return 1 ;;
+  esac
+  case `uname -m` in
+    x86_64|amd64)  _a=x64 ;;
+    arm64|aarch64) _a=arm64 ;;
+    *) return 1 ;;
+  esac
+  # Only tools are published for osx-x64; there is no lib asset, so Intel
+  # macOS has to vendor instead.
+  [ "$_plat" = osx ] && [ "$_a" = x64 ] && return 1
+  echo "${_plat}-${_a}"
+}
+
+fetch_to() {
+  if command -v curl > /dev/null 2>&1; then
+    curl -fsSL -o "$2" "$1" && return 0
+  fi
+  if command -v wget > /dev/null 2>&1; then
+    wget -q -O "$2" "$1" && return 0
+  fi
+  return 1
+}
+
+find_download() {
+  _target=`detect_target`
+  if [ -z "$_target" ]; then
+    say "no prebuilt DoltLite library is published for this OS/arch"
+    return 1
+  fi
+  if ! command -v unzip > /dev/null 2>&1; then
+    say "unzip is required to use a downloaded library"
+    return 1
+  fi
+  _name="doltlite-lib-${_target}-${DOLTLITE_VERSION}"
+  _zip="${_name}.zip"
+  say "downloading $_zip"
+  rm -rf src/doltlite-lib && mkdir -p src/doltlite-lib
+  if ! fetch_to "$RELEASE_BASE/$_zip" "src/doltlite-lib/$_zip"; then
+    say "download failed: $RELEASE_BASE/$_zip"
+    return 1
+  fi
+  if ! ( cd src/doltlite-lib && unzip -q -o "$_zip" ); then
+    say "could not unpack $_zip"
+    return 1
+  fi
+  _inner="src/doltlite-lib/$_name"
+  if [ ! -f "$_inner/libdoltlite.a" ]; then
+    say "$_zip does not contain libdoltlite.a"
+    return 1
+  fi
+  _abs=`cd "$_inner" && pwd`
+  try_with "-I$_abs" "$_abs/libdoltlite.a" || return 1
+  FOUND_CPPFLAGS="-I./doltlite-lib/$_name"
+  FOUND_LIBS="./doltlite-lib/$_name/libdoltlite.a $FOUND_SUFFIX"
+  return 0
+}
+
+# ------------------------------------------------------------------ dispatch --
+VENDOR_OBJECTS=""
+FOUND_CPPFLAGS=""
+FOUND_LIBS=""
+FOUND_SUFFIX=""
+CHOSEN=""
+
+attempt() {
+  case "$1" in
+    system)   find_system   && CHOSEN=system   ;;
+    vendor)   find_vendor   && CHOSEN=vendor   ;;
+    download) find_download && CHOSEN=download ;;
+    *) return 1 ;;
+  esac
+}
+
+HELP="
+Any one of these fixes it:
+  1. Install DoltLite, then reinstall this package:
+       sudo bash -c 'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'
+     or, on Debian/Ubuntu, install libdoltlite-dev.
+  2. Stage the amalgamation, which needs no system install:
+       Rscript tools/vendor_amalgamation.R
+  3. Point at an existing build:
+       DOLTLITE_HOME=/path/to/prefix R CMD INSTALL .
+
+Details are in $LOG."
+
+case "$STRATEGY" in
+  system|vendor|download)
+    attempt "$STRATEGY" || die "strategy '$STRATEGY' could not provide libdoltlite.$HELP"
+    ;;
+  auto)
+    attempt system || attempt vendor || attempt download || die \
+"could not find, vendor or download libdoltlite.
+
+Tried, in order:
+  * an installed libdoltlite (pkg-config / DOLTLITE_HOME / common prefixes)
+  * a vendored amalgamation at src/doltlite/doltlite.c
+  * a prebuilt release library for this OS/arch
+$HELP"
+    ;;
+  *)
+    die "DOLTLITER_STRATEGY must be one of: auto, system, vendor, download (got '$STRATEGY')"
+    ;;
+esac
+
+# Confirm at runtime that we linked the prolly engine and not stock SQLite.
+if [ -x "$probe_dir/probe" ]; then
+  ENGINE=`"$probe_dir/probe" 2>> "$LOG"`
+  case "$ENGINE" in
+    prolly) say "engine check: prolly" ;;
+    "")     say "warning: could not run the engine check (cross-compiling?)" ;;
+    *)      say "warning: engine check reported '$ENGINE', expected 'prolly'" ;;
+  esac
+fi
+
+say "strategy:     $CHOSEN"
+say "PKG_CPPFLAGS: $FOUND_CPPFLAGS"
+say "PKG_LIBS:     $FOUND_LIBS"
+
+sed -e "s|@DOLTLITE_CPPFLAGS@|$FOUND_CPPFLAGS|" \
+    -e "s|@DOLTLITE_LIBS@|$FOUND_LIBS|" \
+    -e "s|@DOLTLITE_OBJECTS@|$VENDOR_OBJECTS|" \
+    -e "s|@DOLTLITER_STRATEGY@|$CHOSEN|" \
+    src/Makevars.in > src/Makevars || die "could not write src/Makevars"
+
+say "wrote src/Makevars"
+exit 0

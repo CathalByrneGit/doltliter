@@ -1,0 +1,265 @@
+---
+title: "Version-controlled data with doltliter"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Version-controlled data with doltliter}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This vignette walks through a full cycle: connect, write a table, commit,
+branch, modify, diff, merge, and resolve a conflict.
+
+```{r setup}
+library(doltliter)
+```
+
+## Connecting
+
+A DoltLite database is a single file.
+
+```{r}
+path <- tempfile(fileext = ".db")
+con <- DBI::dbConnect(Doltlite(), path)
+con
+```
+
+One caveat worth stating up front: pass a real path, not `""`. SQLite's
+anonymous temporary database is created in the *original* B-tree format, and
+version control is not available there.
+
+Commits are attributed per connection, and the setting is not persisted, so
+configure it after connecting:
+
+```{r}
+dolt_config(con, user.name = "Ada Lovelace", user.email = "ada@example.com")
+```
+
+## Writing data
+
+Nothing surprising: this is ordinary DBI.
+
+```{r}
+users <- data.frame(
+  id     = 1:3,
+  name   = c("ada", "bob", "cleo"),
+  active = c(1L, 0L, 1L),
+  stringsAsFactors = FALSE
+)
+
+DBI::dbWriteTable(con, "users", users,
+                  field.types = c(id = "INTEGER PRIMARY KEY"))
+DBI::dbReadTable(con, "users")
+```
+
+The primary key is declared here because `dolt_blame()` later needs one: row
+attribution has to have a stable row identity to attribute to. An
+`INTEGER PRIMARY KEY` stays an ordinary writable `rowid` alias, exactly as in
+SQLite. A *non*-`INTEGER` primary key is different — it makes the table
+clustered, with no `rowid` at all and `NOT NULL` key columns.
+
+The data is in the database, but nothing is in the history yet:
+
+```{r}
+dolt_status(con)
+```
+
+## The two kinds of commit
+
+This is the distinction to hold on to.
+
+`DBI::dbBegin()` / `DBI::dbCommit()` delimit a **SQL transaction**: the
+statements between them either all apply or none do. That is about atomicity.
+
+`dolt_commit()` writes a **commit into the version history**, the way
+`git commit` does. That is about being able to come back later.
+
+`dbCommit()` is "save the file"; `dolt_commit()` is "commit to the
+repository". Writing a table and committing the SQL transaction leaves the
+rows in `dolt_status()` until you make a Dolt commit:
+
+```{r}
+dolt_commit(con, "Initial load")
+dolt_status(con)
+dolt_log(con)[, c("committer", "message")]
+```
+
+A fresh database already contains one commit — DoltLite's own
+`Initialize data repository`.
+
+## Branching
+
+Each connection has its own active branch.
+
+```{r}
+dolt_branch(con, "experiment")
+dolt_checkout(con, "experiment")
+active_branch(con)
+```
+
+Make a change on the branch and commit it:
+
+```{r}
+DBI::dbExecute(con, "UPDATE users SET active = 1 WHERE id = 2")
+dolt_commit(con, "Activate bob")
+```
+
+`main` is untouched:
+
+```{r}
+dolt_checkout(con, "main")
+DBI::dbGetQuery(con, "SELECT id, name, active FROM users ORDER BY id")
+```
+
+You can also connect straight onto a branch. `doltliter` translates this to
+DoltLite's `dbname@branch` path syntax internally, and errors if the branch
+does not exist rather than silently opening `main`:
+
+```{r}
+con2 <- DBI::dbConnect(Doltlite(), path, branch = "experiment")
+active_branch(con2)
+DBI::dbDisconnect(con2)
+```
+
+## Diffing
+
+`dolt_table_diff()` compares a table between two refs, with `from_`/`to_`
+column pairs:
+
+```{r}
+d <- dolt_table_diff(con, "users", from = "main", to = "experiment")
+d[, c("diff_type", "to_id", "from_active", "to_active")]
+```
+
+`dolt_diff()` works at the level of *which tables* changed in each commit. The
+pseudo-commit `WORKING` covers uncommitted changes:
+
+```{r}
+DBI::dbExecute(con, "UPDATE users SET name = 'ADA' WHERE id = 1")
+dolt_diff(con, "users")[, c("commit_hash", "table_name", "data_change")]
+dolt_reset(con, "hard")
+```
+
+For summaries rather than rows, there are `dolt_diff_stat()`,
+`dolt_diff_summary()` and `dolt_schema_diff()`; for an executable rebuild,
+`dolt_patch()`.
+
+## Merging
+
+A clean merge just works:
+
+```{r}
+dolt_merge(con, "experiment")
+DBI::dbGetQuery(con, "SELECT id, name, active FROM users ORDER BY id")
+```
+
+## Resolving a conflict
+
+Conflicts in DoltLite are **never durable**: they exist only inside the
+transaction that produced them, and a commit is refused while any remain. An
+autocommit merge that conflicts is therefore rolled back whole — so to inspect
+and resolve conflicts, run the merge inside a transaction.
+
+Set up two branches that edit the same row:
+
+```{r}
+dolt_checkout(con, "theirs", create = TRUE)
+DBI::dbExecute(con, "UPDATE users SET name = 'THEIRS' WHERE id = 1")
+dolt_commit(con, "Rename on theirs")
+
+dolt_checkout(con, "main")
+DBI::dbExecute(con, "UPDATE users SET name = 'OURS' WHERE id = 1")
+dolt_commit(con, "Rename on main")
+```
+
+Now merge inside a transaction:
+
+```{r}
+DBI::dbBegin(con)
+dolt_merge(con, "theirs")
+dolt_conflicts(con)
+```
+
+Inspect the detail, then take one side (or edit the rows directly):
+
+```{r}
+dolt_conflicts_resolve(con, "ours")
+dolt_conflicts(con)
+dolt_commit(con, "Merge theirs, keeping ours")
+DBI::dbGetQuery(con, "SELECT id, name FROM users WHERE id = 1")
+```
+
+`dolt_commit()` also ends the SQL transaction, so there is nothing left to
+`dbCommit()`.
+
+## History and blame
+
+```{r}
+dolt_log(con)[, c("committer", "message")]
+```
+
+`dolt_history()` gives every version of every row, and `dolt_at()` reads a
+table as it was at a revision:
+
+```{r}
+first <- rev(dolt_log(con)$commit_hash)[1]
+dolt_at(con, "users", first)
+```
+
+`dolt_blame()` attributes each live row to the commit that last set it. It
+needs a primary key — there is no stable row identity without one:
+
+```{r}
+dolt_blame(con, "users")[, c("id", "committer", "message")]
+```
+
+## dplyr
+
+`dplyr::tbl()` works over the connection with no extra setup: DoltLite's SQL
+dialect is SQLite's, and `doltliter` reuses dbplyr's SQLite translation.
+
+```{r, eval = requireNamespace("dplyr", quietly = TRUE)}
+library(dplyr)
+tbl(con, "users") |>
+  filter(active == 1) |>
+  select(id, name) |>
+  collect()
+```
+
+## Remotes
+
+Databases can push, pull, fetch and clone between each other, over the
+filesystem or HTTP:
+
+```{r}
+origin <- tempfile(fileext = ".db")
+file.copy(path, origin)
+
+clone_path <- tempfile(fileext = ".db")
+clone <- DBI::dbConnect(Doltlite(), clone_path)
+dolt_clone(clone, paste0("file://", origin))
+
+DBI::dbReadTable(clone, "users")
+dolt_remotes(clone)[, c("name", "url")]
+DBI::dbDisconnect(clone)
+```
+
+## Concurrency
+
+DoltLite allows one durable writer at a time. A second connection that begins
+a write transaction gets `SQLITE_BUSY` until the first finishes, and a
+transaction that tries to upgrade after a peer advanced the store gets
+`SQLITE_BUSY_SNAPSHOT`. Both are retryable, and `dbConnect()` sets a
+five-second busy timeout by default:
+
+```{r, eval = FALSE}
+con <- DBI::dbConnect(Doltlite(), path, busy_timeout = 30000)
+```
+
+```{r}
+DBI::dbDisconnect(con)
+```

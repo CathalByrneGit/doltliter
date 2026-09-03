@@ -1,0 +1,14 @@
+*.o
+*.so
+*.dll
+*.a
+.Rhistory
+.RData
+.Rproj.user
+src/Makevars
+src/Makevars.win
+src/doltlite/
+src/doltlite-lib/
+config.log
+doltliter.Rcheck/
+*.tar.gz

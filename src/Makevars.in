@@ -1,0 +1,27 @@
+# Generated from Makevars.in by ../configure -- do not edit Makevars directly.
+# Chosen strategy: @DOLTLITER_STRATEGY@
+
+PKG_CPPFLAGS = @DOLTLITE_CPPFLAGS@
+PKG_CXXFLAGS =
+PKG_LIBS = @DOLTLITE_LIBS@
+
+# R globs src/*.c and src/*.cpp for OBJECTS. The vendored amalgamation lives in
+# src/doltlite/ precisely so it is *not* globbed, and is added here only when
+# configure selected the vendor strategy.
+OBJECTS = init.o doltlite_connection.o doltlite_result.o @DOLTLITE_OBJECTS@
+
+all: $(SHLIB)
+
+# R's implicit rules do not track header dependencies, so a change to one of
+# these would otherwise relink stale objects.
+DOLTLITER_HEADERS = doltliter.h doltlite_connection.h doltlite_result.h
+init.o: $(DOLTLITER_HEADERS)
+doltlite_connection.o: $(DOLTLITER_HEADERS)
+doltlite_result.o: $(DOLTLITER_HEADERS)
+
+# The amalgamation is ~19 MB of third-party C; compile it quietly and without
+# our own warning flags, which are tuned for this package's own sources.
+doltlite_amalgamation.o: doltlite_amalgamation.c
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c doltlite_amalgamation.c -o $@
+
+.PHONY: all

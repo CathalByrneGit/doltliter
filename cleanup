@@ -1,0 +1,11 @@
+#!/bin/sh
+# Remove everything configure/configure.win generated, so that a re-run starts
+# from a clean slate. Leaves src/doltlite/ alone: staging the amalgamation is
+# an explicit, expensive user action (tools/vendor_amalgamation.R), not build
+# output, and re-downloading 20 MB on every rebuild would be rude.
+rm -f src/Makevars src/Makevars.win
+rm -f src/doltlite_amalgamation.c
+rm -f src/*.o src/*.so src/*.dll
+rm -f config.log
+rm -rf .doltliter-probe
+exit 0

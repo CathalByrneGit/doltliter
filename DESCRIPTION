@@ -1,0 +1,44 @@
+Package: doltliter
+Type: Package
+Title: A 'DBI' Backend for 'DoltLite' Version-Controlled 'SQLite'
+Version: 0.1.0
+Authors@R: person("Cathal", "Byrne", email = "cathal470@gmail.com",
+                  role = c("aut", "cre"))
+Description: Embeds 'DoltLite' <https://github.com/dolthub/doltlite>, a fork of
+    'SQLite' whose storage engine is a content-addressed prolly tree, and
+    exposes it as a conformant 'DBI' backend. Standard 'DBI' verbs behave as
+    they do for any 'SQLite' database, while Git-style version control --
+    commits, branches, diffs, merges, tags and remotes -- is available through
+    ordinary R functions. Works with 'dplyr' and 'dbplyr' through the 'DBI'
+    interface.
+License: MIT + file LICENSE
+URL: https://github.com/CathalByrneGit/doltliter
+BugReports: https://github.com/CathalByrneGit/doltliter/issues
+Encoding: UTF-8
+Depends: R (>= 3.6.0)
+Imports: DBI (>= 1.1.0), methods, bit64
+Suggests: testthat (>= 3.0.0), DBItest (>= 1.7.0), blob, dbplyr, dplyr,
+    knitr, rmarkdown, withr, RSQLite
+LinkingTo:
+SystemRequirements: A C++11 compiler, zlib. Either a prebuilt 'libdoltlite'
+    (found via pkg-config or DOLTLITE_HOME), a vendored 'DoltLite'
+    amalgamation staged by tools/vendor_amalgamation.R, or network access at
+    install time to download a prebuilt library. See INSTALL.
+NeedsCompilation: yes
+Biarch: true
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+Collate:
+    '00-classes.R'
+    'zzz.R'
+    'Doltlite-driver.R'
+    'Doltlite-connection.R'
+    'Doltlite-result.R'
+    'dolt-sql.R'
+    'dolt-commit.R'
+    'dolt-branch.R'
+    'dolt-history.R'
+    'dolt-remote.R'
+    'dbplyr.R'
+    'reexports.R'
+Config/roxygen2/version: 8.1.0

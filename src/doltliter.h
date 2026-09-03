@@ -9,15 +9,32 @@
 #ifndef DOLTLITER_H
 #define DOLTLITER_H
 
+/* Standard headers first, and R_NO_REMAP before R's own.
+ *
+ * Rinternals.h otherwise defines `length`, `error`, `allocVector` and friends
+ * as bare macros. `length` is the dangerous one: libc++ reaches <locale> from
+ * <set>, and std::codecvt has a member function called length, so the macro
+ * turns a standard header into a syntax error. libstdc++ does not chain those
+ * headers the same way, which is why this only shows up on macOS.
+ *
+ * Every R call site in this package already uses the Rf_ prefix, so switching
+ * the remapping off costs nothing. */
+#ifdef __cplusplus
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#endif
+
 #include <doltlite.h>
 
+#ifndef R_NO_REMAP
+# define R_NO_REMAP
+#endif
 #include <R.h>
 #include <Rinternals.h>
 
 #ifdef __cplusplus
-
-#include <stdexcept>
-#include <string>
 
 /* R signals errors with a longjmp, which would walk straight past C++
  * destructors. So each entry point catches everything, copies the message

@@ -73,8 +73,14 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
 
+      # check-r-package checks a tarball in its own directory and does not
+      # leave the package on the library path, so install it before asking it
+      # anything. Worth keeping per-platform: configure asserts the engine at
+      # build time, but this proves it again from a real R session, on the
+      # platforms the golden-file job does not cover.
       - name: Confirm the engine really is DoltLite
         run: |
+          R CMD INSTALL .
           Rscript -e 'stopifnot(identical(doltliter::doltlite_engine(), "prolly"))' \
                   -e 'cat("engine ok\n")'
         shell: bash

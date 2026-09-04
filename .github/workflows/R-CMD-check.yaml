@@ -119,14 +119,30 @@ jobs:
       # package to build vignettes, and configure runs there), in which case
       # the uploaded results artifact is empty and the reason is invisible.
       # config.log is exactly where configure records what it tried.
+      # Diagnosing this is harder than it looks. R CMD check keeps its logs
+      # under check/<pkg>.Rcheck/00_pkg_src/, not the workspace root, and when
+      # R CMD build is what failed there is no check/ at all -- its vignette
+      # install runs configure in a temp directory that is then removed. So
+      # rather than hunt for logs that may never have been written, reproduce
+      # the install in the workspace, where configure runs in place and writes
+      # config.log next to DESCRIPTION.
       - name: Show build logs on failure
         if: failure()
         run: |
-          for f in config.log src/Makevars src/Makevars.win; do
-            if [ -f "$f" ]; then echo "===== $f ====="; tail -120 "$f"; fi
-          done
-          for f in $(find check -name '00install.out' -o -name '00check.log' 2>/dev/null); do
-            echo "===== $f ====="; tail -120 "$f"
+          echo "===== any logs left behind ====="
+          find . \( -name config.log -o -name 00install.out -o -name 00check.log \) 2>/dev/null \
+            | head -20 | while read -r f; do
+                echo "----- $f -----"; tail -150 "$f"
+              done || true
+
+          echo "===== reproducing R CMD INSTALL in the workspace ====="
+          R CMD INSTALL --preclean --no-docs . 2>&1 | tail -150 || true
+
+          if [ -f config.log ]; then
+            echo "===== config.log ====="; tail -200 config.log
+          fi
+          for f in src/Makevars src/Makevars.win; do
+            if [ -f "$f" ]; then echo "===== $f ====="; cat "$f"; fi
           done
         shell: bash
 

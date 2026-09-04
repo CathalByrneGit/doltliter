@@ -96,8 +96,12 @@ jobs:
         run: |
           log=$(find check -name '00check.log' | head -1)
           if [ -z "$log" ]; then echo "no check log found"; exit 1; fi
+          # -F: the exclusion is a literal string. With grep's default basic
+          # regex, "C/C\+\+" means "one or more C" rather than "C++", so the
+          # pragma line failed to match its own exclusion and the guard fired
+          # on the very warning it was meant to allow.
           unexpected=$(grep -E '^\* checking .* \.\.\. WARNING' "$log" \
-                       | grep -v 'checking pragmas in C/C\+\+ headers and code' || true)
+                       | grep -vF 'checking pragmas in C/C++ headers and code' || true)
           if [ -n "$unexpected" ]; then
             echo "Unexpected WARNING(s) beyond the known vendored-pragma one:"
             echo "$unexpected"
@@ -111,6 +115,21 @@ jobs:
       # anything. Worth keeping per-platform: configure asserts the engine at
       # build time, but this proves it again from a real R session, on the
       # platforms the golden-file job does not cover.
+      # rcmdcheck can fail before check/ exists (R CMD build installs the
+      # package to build vignettes, and configure runs there), in which case
+      # the uploaded results artifact is empty and the reason is invisible.
+      # config.log is exactly where configure records what it tried.
+      - name: Show build logs on failure
+        if: failure()
+        run: |
+          for f in config.log src/Makevars src/Makevars.win; do
+            if [ -f "$f" ]; then echo "===== $f ====="; tail -120 "$f"; fi
+          done
+          for f in $(find check -name '00install.out' -o -name '00check.log' 2>/dev/null); do
+            echo "===== $f ====="; tail -120 "$f"
+          done
+        shell: bash
+
       - name: Confirm the engine really is DoltLite
         run: |
           R CMD INSTALL .

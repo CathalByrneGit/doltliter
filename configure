@@ -151,8 +151,11 @@ find_vendor() {
   say "using the vendored DoltLite amalgamation in src/doltlite"
 
   _v="$DOLTLITE_VERSION"
-  if [ -f src/doltlite/VERSION ]; then
-    _v=`sed 's/^v//' src/doltlite/VERSION | tr -d ' \n\r'`
+  # Deliberately not named VERSION: src/doltlite is on the include path, and
+  # on a case-insensitive filesystem clang resolves libc++'s #include <version>
+  # to it and tries to compile the version string as C++.
+  if [ -f src/doltlite/doltlite_version.txt ]; then
+    _v=`sed 's/^v//' src/doltlite/doltlite_version.txt | tr -d ' \n\r'`
   fi
 
   # A one-line wrapper TU keeps the version string clear of Makefile quoting

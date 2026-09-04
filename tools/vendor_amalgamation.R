@@ -72,7 +72,12 @@ file.copy(file.path(inner, copy), file.path(dest_dir, copy), overwrite = TRUE)
 
 # configure reads this to stamp -DDOLTLITE_VERSION, so that dolt_version()
 # reports a real version rather than the amalgamation's placeholder.
-writeLines(paste0("v", version), file.path(dest_dir, "VERSION"))
+#
+# The name matters. This directory goes on the compiler's include path, and
+# macOS filesystems are case-insensitive -- a file called VERSION here is found
+# by libc++'s `#include <version>`, which then fails to compile the version
+# string as C++. Any name that cannot collide with a standard header will do.
+writeLines(paste0("v", version), file.path(dest_dir, "doltlite_version.txt"))
 
 unlink(c(zip_path, tmp_dir), recursive = TRUE)
 

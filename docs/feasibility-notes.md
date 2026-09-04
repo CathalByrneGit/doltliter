@@ -243,6 +243,17 @@ recorded here because each one is a trap for the next person:
 - **DoltLite bundles its own zlib**: linking needs neither `-lz` nor
   `-lpthread` on Linux, only `-lm`. `configure` still tries the longer
   candidate link lines, since older layouts and static archives may want them.
+- **Never put an extensionless file in a directory that is on the include
+  path.** `tools/vendor_amalgamation.R` originally wrote the version stamp to
+  `src/doltlite/VERSION`, and `configure` puts that directory on the include
+  path with `-I./doltlite`. macOS filesystems are case-insensitive, so libc++'s
+  `#include <version>` -- reached from `<cstddef>`, itself reached from
+  `<set>` -- resolved to that stamp and clang tried to compile `v0.50.3` as
+  C++. It only bit macOS + vendor: Linux is case-sensitive, libstdc++ does not
+  chain `<version>` from `<cstddef>`, and the macOS ARM job uses the prebuilt
+  library so the file is not there at all. The stamp is now
+  `doltlite_version.txt`.
+
 - **dbplyr's SQLite translation reads the SQLite version from RSQLite**, and
   builds that table lazily, so a missing RSQLite fails at query-render time
   rather than at dialect construction. The backend checks for RSQLite up front

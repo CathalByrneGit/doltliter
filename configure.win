@@ -7,7 +7,7 @@
 # libdoltlite.dll -- no static archive and, more importantly, no .lib/.dll.a
 # import library -- so there is nothing Rtools can link against directly, and a
 # DLL that must then be found at runtime is a worse deal than a one-minute
-# compile. See docs/feasibility-notes.md section 3.
+# compile. See vignettes/articles/feasibility-notes.Rmd section 3.
 #
 # DOLTLITER_STRATEGY=system still works if you have a MinGW-built libdoltlite.
 

@@ -1,0 +1,163 @@
+---
+title: "Time travel: history, diffs and blame"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Time travel: history, diffs and blame}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+Committing data is only half the point. The other half is being able to ask
+what the data used to be, what changed between two moments, and who changed it.
+
+```{r setup}
+library(doltliter)
+
+con <- DBI::dbConnect(Doltlite(), tempfile(fileext = ".db"))
+dolt_config(con, user.name = "Ada Lovelace", user.email = "ada@example.com")
+```
+
+Let's build a table with a few revisions behind it. The primary key matters
+here: `dolt_blame()` needs one, because without a stable row identity there is
+nothing to attribute a change *to*.
+
+```{r}
+DBI::dbWriteTable(
+  con, "readings",
+  data.frame(id = 1:3,
+             sensor = c("A", "B", "C"),
+             value  = c(10.0, 20.0, 30.0)),
+  field.types = c(id = "INTEGER PRIMARY KEY")
+)
+dolt_commit(con, "First calibration run")
+
+DBI::dbExecute(con, "UPDATE readings SET value = 21.5 WHERE id = 2")
+dolt_commit(con, "Recalibrate sensor B")
+
+DBI::dbExecute(con, "INSERT INTO readings VALUES (4, 'D', 40.0)")
+dolt_commit(con, "Add sensor D")
+```
+
+## What happened, and when
+
+```{r}
+dolt_log(con)[, c("committer", "date", "message")]
+```
+
+`dolt_diff()` works one level up — which *tables* changed in each commit,
+rather than which rows:
+
+```{r}
+dolt_diff(con, "readings")[, c("commit_hash", "data_change", "schema_change")]
+```
+
+Uncommitted work shows up under the pseudo-commit `WORKING`, which is a
+convenient way to see whether anything is pending:
+
+```{r}
+DBI::dbExecute(con, "UPDATE readings SET value = 41.0 WHERE id = 4")
+dolt_diff(con, "readings")$commit_hash[1]
+dolt_status(con)
+```
+
+## Row-level diffs
+
+`dolt_table_diff()` is the workhorse. Give it two endpoints and it returns one
+row per changed row, with `from_` and `to_` columns side by side:
+
+```{r}
+d <- dolt_table_diff(con, "readings", from = "HEAD", to = "WORKING")
+d[, c("diff_type", "to_id", "from_value", "to_value")]
+```
+
+Endpoints are anything DoltLite understands as a ref — a branch, a tag, a
+commit hash, `HEAD~2`, `WORKING`:
+
+```{r}
+dolt_table_diff(con, "readings", from = "HEAD~2", to = "HEAD")[
+  , c("diff_type", "to_id", "from_value", "to_value")]
+```
+
+A range string works too, which is handy when comparing branches.
+Two dots are the two endpoints; three dots is merge-base to the right endpoint:
+
+```{r, eval = FALSE}
+dolt_table_diff(con, "readings", range = "main..feature")
+dolt_table_diff(con, "readings", range = "main...feature")
+```
+
+For a summary rather than the rows themselves:
+
+```{r}
+dolt_diff_stat(con, "HEAD~2", "HEAD")
+```
+
+```{r}
+dolt_reset(con, "hard")
+```
+
+## Reading the past directly
+
+`dolt_at()` reads a table as it was at some revision — no checkout, no
+branch switching, just a query against a historical snapshot:
+
+```{r}
+first <- rev(dolt_log(con)$commit_hash)[2]   # the first real commit
+
+dolt_at(con, "readings", first)
+DBI::dbReadTable(con, "readings")
+```
+
+`dolt_history()` goes wider: every version of every row across the commit
+ancestry, with the commit metadata attached. It is the right tool for "plot
+this value over time":
+
+```{r}
+h <- dolt_history(con, "readings")
+h[h$id == 2, c("id", "sensor", "value", "commit_hash")]
+```
+
+## Who changed this row
+
+`dolt_blame()` attributes each *live* row to the commit that last set it:
+
+```{r}
+dolt_blame(con, "readings")[, c("id", "committer", "message")]
+```
+
+It walks first parents from `HEAD`. Schema-only changes such as
+`ALTER TABLE ... ADD COLUMN` do not update blame, so a column addition will not
+make every row look freshly touched.
+
+## Content hashes
+
+Every table root and the catalog as a whole are content-addressed, and the
+table and database hashes are *history-independent*: the same rows hash the
+same regardless of how they got there.
+
+```{r}
+dolt_hashof(con, "HEAD")        # commit hash — covers the timestamp too
+dolt_hashof_table(con, "readings")
+dolt_hashof_db(con)
+```
+
+That makes `dolt_hashof_table()` a cheap way to ask "did this table actually
+change?" across two databases or two points in time, without diffing.
+
+## Generating a patch
+
+`dolt_patch()` turns a diff into ordered, executable SQLite statements — useful
+for review, or for replaying a change somewhere else:
+
+```{r}
+p <- dolt_patch(con, "HEAD~1", "HEAD")
+p[, c("statement_order", "diff_type", "statement")]
+```
+
+```{r}
+DBI::dbDisconnect(con)
+```

@@ -67,3 +67,43 @@ test_that("SQLite-specific translations are used when available", {
   # SQLite concatenates with ||, not CONCAT().
   expect_match(as.character(sql), "||", fixed = TRUE)
 })
+
+test_that("copy_to() and compute() create correctly named tables", {
+  # Regression test. dbplyr's SQLite dialect quotes identifiers with
+  # backticks, and the SQL() name it hands to dbCreateTable() arrives already
+  # quoted. Only double quotes were being stripped, so copy_to() created a
+  # table literally named `measurements`, backticks included -- which nothing
+  # that quoted the name properly could then find.
+  skip_if_not_installed("dplyr")
+  con <- local_dolt()
+
+  df <- data.frame(id = 1:4, grp = rep(c("a", "b"), each = 2), v = c(1, 2, 3, 4))
+  dplyr::copy_to(con, df, "measurements", temporary = FALSE)
+
+  expect_true("measurements" %in% DBI::dbListTables(con))
+  expect_false(any(grepl("`", DBI::dbListTables(con), fixed = TRUE)))
+  expect_equal(nrow(DBI::dbReadTable(con, "measurements")), 4L)
+
+  out <- dplyr::compute(
+    dplyr::summarise(
+      dplyr::group_by(dplyr::tbl(con, "measurements"), grp),
+      n = dplyr::n()
+    ),
+    name = "grp_counts", temporary = FALSE
+  )
+
+  expect_true("grp_counts" %in% DBI::dbListTables(con))
+  expect_equal(sort(DBI::dbReadTable(con, "grp_counts")$n), c(2L, 2L))
+})
+
+test_that("already-quoted identifiers are unquoted whatever the style", {
+  con <- local_dolt()
+  DBI::dbExecute(con, 'CREATE TABLE "quoted me" (x INT)')
+
+  # Double quotes are what this package emits; backticks are what dbplyr's
+  # SQLite dialect emits; brackets round out the SQLite-accepted set.
+  for (q in c('"quoted me"', "`quoted me`", "[quoted me]")) {
+    expect_true(DBI::dbExistsTable(con, DBI::SQL(q)), info = q)
+    expect_equal(DBI::dbListFields(con, DBI::SQL(q)), "x", info = q)
+  }
+})

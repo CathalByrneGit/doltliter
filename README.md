@@ -2,7 +2,10 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/CathalByrneGit/doltliter/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml)
 <!-- badges: end -->
+
+📖 **Documentation: <https://cathalbyrnegit.github.io/doltliter/>**
 
 A [DBI](https://dbi.r-dbi.org) backend for
 [DoltLite](https://github.com/dolthub/doltlite) — a fork of SQLite whose
@@ -82,7 +85,8 @@ mysteriously at the first `dolt_*` call.
 
 The background to all of this — what the release artifacts actually contain,
 which platforms have no prebuilt library, and why Windows prefers the
-amalgamation — is in [`docs/feasibility-notes.md`](docs/feasibility-notes.md).
+amalgamation — is in
+[Why a native binding, and how it links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html).
 
 ## Two kinds of "commit"
 
@@ -189,13 +193,13 @@ suppresses compiler diagnostics, as SQLite's own does, so `R CMD check`
 reports `checking pragmas in C/C++ headers and code ... WARNING`. It is an
 accurate statement about third-party generated source rather than a defect
 here, and it cannot be resolved without editing that source. See
-[`docs/feasibility-notes.md`](docs/feasibility-notes.md).
+[Why a native binding, and how it links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html).
 
 ## DBI conformance
 
 The full `DBItest` suite runs as part of the test suite and passes, apart from
 two naming conventions that follow from the package's own name. Details in
-[`docs/dbi-compliance.md`](docs/dbi-compliance.md).
+[DBI conformance](https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html).
 
 ## License
 

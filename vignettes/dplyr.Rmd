@@ -1,0 +1,135 @@
+---
+title: "Using dplyr"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using dplyr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+has_dplyr <- requireNamespace("dplyr", quietly = TRUE) &&
+  requireNamespace("dbplyr", quietly = TRUE)
+knitr::opts_chunk$set(eval = has_dplyr)
+```
+
+`dplyr::tbl()` works over a `doltliter` connection with no extra setup.
+DoltLite's SQL dialect *is* SQLite's — the parser and planner are upstream, only
+the storage engine below them differs — so this package reuses dbplyr's SQLite
+translation rather than defining its own.
+
+```{r setup, message = FALSE}
+library(doltliter)
+library(dplyr)
+
+con <- DBI::dbConnect(Doltlite(), tempfile(fileext = ".db"))
+dolt_config(con, user.name = "Ada Lovelace", user.email = "ada@example.com")
+```
+
+## A lazy table
+
+```{r}
+measurements <- data.frame(
+  id     = 1:8,
+  site   = rep(c("north", "south"), each = 4),
+  season = rep(c("spring", "summer"), times = 4),
+  value  = c(12.1, 15.4, 9.8, 11.2, 18.7, 22.3, 17.1, 19.9)
+)
+
+copy_to(con, measurements, "measurements", temporary = FALSE)
+dolt_commit(con, "Load measurements")
+
+tb <- tbl(con, "measurements")
+tb
+```
+
+The pipeline is not evaluated until you ask for the rows:
+
+```{r}
+tb |>
+  filter(value > 15) |>
+  select(site, season, value) |>
+  arrange(desc(value)) |>
+  collect()
+```
+
+`show_query()` prints the SQL that would run, which is the quickest way to
+check that a step is being pushed down rather than pulled into R:
+
+```{r}
+tb |>
+  group_by(site) |>
+  summarise(n = n(), mean_value = mean(value, na.rm = TRUE)) |>
+  show_query()
+```
+
+```{r}
+tb |>
+  group_by(site) |>
+  summarise(n = n(), mean_value = mean(value, na.rm = TRUE)) |>
+  collect()
+```
+
+## Comparing branches with dplyr
+
+This is where the combination gets interesting. A branch is just a different
+view of the same file, so you can point two connections at two branches and
+compare them with ordinary dplyr.
+
+```{r}
+path <- DBI::dbGetInfo(con)$dbname
+
+dolt_checkout(con, "reprocessed", create = TRUE)
+DBI::dbExecute(con, "UPDATE measurements SET value = value * 1.1 WHERE site = 'north'")
+dolt_commit(con, "Apply 10% correction to northern sites")
+DBI::dbDisconnect(con)
+```
+
+Open one connection per branch:
+
+```{r}
+main <- DBI::dbConnect(Doltlite(), path, branch = "main")
+repro <- DBI::dbConnect(Doltlite(), path, branch = "reprocessed")
+
+before <- tbl(main,  "measurements") |>
+  group_by(site) |> summarise(mean_value = mean(value, na.rm = TRUE)) |> collect()
+
+after <- tbl(repro, "measurements") |>
+  group_by(site) |> summarise(mean_value = mean(value, na.rm = TRUE)) |> collect()
+
+inner_join(before, after, by = "site", suffix = c("_main", "_reprocessed"))
+```
+
+Note that a join *across* two connections happens in R, because the two
+`tbl()`s belong to different sources. Within one connection, joins are pushed
+down to SQL as usual.
+
+## Writing results back
+
+`compute()` materialises a query into a table on the database, which then
+commits, diffs and branches like any other:
+
+```{r}
+summary_tbl <- tbl(repro, "measurements") |>
+  group_by(site, season) |>
+  summarise(mean_value = mean(value, na.rm = TRUE), .groups = "drop") |>
+  compute(name = "site_season_summary", temporary = FALSE)
+
+dolt_config(repro, user.name = "Ada Lovelace", user.email = "ada@example.com")
+dolt_commit(repro, "Add site/season summary")
+dolt_log(repro)$message[1]
+```
+
+## A note on translation
+
+dbplyr version-gates a handful of its SQLite translations and reads the SQLite
+version from RSQLite. If RSQLite is not installed, `doltliter` falls back to
+dbplyr's default translation and says so once. Everything still works; you just
+get slightly more generic SQL. Install RSQLite if you want the full SQLite
+translation table.
+
+```{r}
+DBI::dbDisconnect(main)
+DBI::dbDisconnect(repro)
+```

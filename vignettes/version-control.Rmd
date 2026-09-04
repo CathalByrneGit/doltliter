@@ -1,0 +1,197 @@
+---
+title: "Branching, merging and conflicts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Branching, merging and conflicts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`vignette("doltliter")` covers a single pass through the commit loop. This
+article is about working on more than one line of history at once: branching,
+merging, what happens when two branches disagree, and how to undo things.
+
+```{r setup}
+library(doltliter)
+
+path <- tempfile(fileext = ".db")
+con <- DBI::dbConnect(Doltlite(), path)
+dolt_config(con, user.name = "Ada Lovelace", user.email = "ada@example.com")
+```
+
+We will curate a small reference table — the kind of data that gets corrected
+over time, which is where version control earns its keep.
+
+```{r}
+sites <- data.frame(
+  id     = 1:4,
+  name   = c("Ballycotton", "Roches Point", "Mizen Head", "Loop Head"),
+  region = c("Cork", "Cork", "Cork", "Clare"),
+  active = c(1L, 1L, 0L, 1L),
+  stringsAsFactors = FALSE
+)
+
+DBI::dbWriteTable(con, "sites", sites,
+                  field.types = c(id = "INTEGER PRIMARY KEY"))
+dolt_commit(con, "Initial site list")
+```
+
+## Branches are per connection
+
+Each connection holds its own active branch. Creating one does not move you
+onto it:
+
+```{r}
+dolt_branch(con, "review")
+dolt_branches(con)[, c("name", "dirty")]
+active_branch(con)
+```
+
+`dolt_checkout()` switches; `create = TRUE` does both at once.
+
+```{r}
+dolt_checkout(con, "review")
+active_branch(con)
+```
+
+Work done here does not touch `main`:
+
+```{r}
+DBI::dbExecute(con, "UPDATE sites SET active = 1 WHERE name = 'Mizen Head'")
+dolt_commit(con, "Reactivate Mizen Head")
+
+dolt_checkout(con, "main")
+DBI::dbGetQuery(con, "SELECT name, active FROM sites WHERE name = 'Mizen Head'")
+```
+
+One thing to be aware of: uncommitted work belongs to the *branch*, not the
+connection. There is no stash — checking out does not shelve changes, and
+another connection that checks out the same branch will see the same working
+set.
+
+## A clean merge
+
+When the two sides touch different rows, the merge just happens and returns
+the new commit hash:
+
+```{r}
+dolt_merge(con, "review")
+DBI::dbGetQuery(con, "SELECT name, active FROM sites ORDER BY id")
+```
+
+## A conflicting merge
+
+Now the interesting case. Two branches edit the *same* row:
+
+```{r}
+dolt_checkout(con, "regional", create = TRUE)
+DBI::dbExecute(con, "UPDATE sites SET region = 'County Cork' WHERE id = 1")
+dolt_commit(con, "Use full county names")
+
+dolt_checkout(con, "main")
+DBI::dbExecute(con, "UPDATE sites SET region = 'CORK' WHERE id = 1")
+dolt_commit(con, "Normalise regions to upper case")
+```
+
+Here is the part that catches people out. Conflicts in DoltLite are **never
+durable** — they exist only inside the transaction that produced them. A merge
+run in autocommit mode, which is what you get by default, is rolled back in
+full the moment it conflicts:
+
+```{r, error = TRUE}
+dolt_merge(con, "regional")
+```
+
+Nothing was left behind to inspect:
+
+```{r}
+nrow(dolt_conflicts(con))
+DBI::dbGetQuery(con, "SELECT region FROM sites WHERE id = 1")
+```
+
+To actually work on the conflict, put the merge in a transaction:
+
+```{r}
+DBI::dbBegin(con)
+dolt_merge(con, "regional")
+dolt_conflicts(con)
+```
+
+The per-table view carries `base_`, `our_` and `their_` columns, so you can see
+all three sides at once:
+
+```{r}
+detail <- dolt_conflicts_table(con, "sites")
+detail[, grep("region|dolt_conflict_id", names(detail), value = TRUE)]
+```
+
+Resolve by taking one side wholesale, or by editing the rows directly and then
+resolving:
+
+```{r}
+dolt_conflicts_resolve(con, "ours")
+nrow(dolt_conflicts(con))
+
+dolt_commit(con, "Merge regional, keeping upper-case regions")
+DBI::dbGetQuery(con, "SELECT region FROM sites WHERE id = 1")
+```
+
+Note that `dolt_commit()` also ended the SQL transaction, so there is nothing
+left for `DBI::dbCommit()` to do:
+
+```{r, error = TRUE}
+DBI::dbCommit(con)
+```
+
+A commit is refused while any conflict remains, so you cannot accidentally
+record a half-merged state.
+
+## Tags
+
+Tags name a commit so you can come back to it:
+
+```{r}
+dolt_tag(con, "v1.0")
+dolt_tags(con)[, 1:2]
+```
+
+They work anywhere a ref does — `dolt_at(con, "sites", "v1.0")`, or as a diff
+endpoint.
+
+## Undoing things
+
+`dolt_reset()` throws away uncommitted work; `"soft"` unstages but keeps it,
+`"hard"` discards it:
+
+```{r}
+DBI::dbExecute(con, "DELETE FROM sites WHERE id = 4")
+DBI::dbGetQuery(con, "SELECT count(*) AS n FROM sites")$n
+
+dolt_reset(con, "hard")
+DBI::dbGetQuery(con, "SELECT count(*) AS n FROM sites")$n
+```
+
+`dolt_revert()` is the one to reach for when the change is already committed.
+It does not rewrite history — it writes a *new* commit applying the inverse:
+
+```{r}
+DBI::dbExecute(con, "INSERT INTO sites VALUES (5, 'Blackrock', 'CORK', 1)")
+oops <- dolt_commit(con, "Add Blackrock")
+
+dolt_revert(con, oops)
+DBI::dbGetQuery(con, "SELECT count(*) AS n FROM sites")$n
+dolt_log(con)$message[1:2]
+```
+
+`dolt_cherry_pick()` applies a single commit from elsewhere onto the current
+branch, and `dolt_rebase()` replays a whole branch onto another. Both resolve
+conflicts the same way `dolt_merge()` does, so the transaction advice above
+applies to them too.
+
+```{r}
+DBI::dbDisconnect(con)
+```

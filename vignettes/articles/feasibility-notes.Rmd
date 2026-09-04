@@ -1,4 +1,11 @@
-# doltliter — Phase 1 feasibility notes
+---
+title: "Why a native binding, and how it links"
+output: rmarkdown::html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
 
 Investigation date: 2026-09-03.
 Upstream studied: `dolthub/doltlite` @ `master` (shallow clone), release **v0.50.3**

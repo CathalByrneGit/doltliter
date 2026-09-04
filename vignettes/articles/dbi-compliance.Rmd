@@ -1,4 +1,11 @@
-# DBI conformance
+---
+title: "DBI conformance"
+output: rmarkdown::html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
 
 `doltliter` runs the full [DBItest](https://dbitest.r-dbi.org) suite as part of
 its own test suite (`tests/testthat/test-dbi-compliance.R`), covering the

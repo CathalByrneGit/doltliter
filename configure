@@ -1,7 +1,7 @@
 #!/bin/sh
 # doltliter: locate or build libdoltlite, then write src/Makevars.
 #
-# Three tiers, tried in ascending cost (see docs/feasibility-notes.md):
+# Three tiers, tried in ascending cost (see vignettes/articles/feasibility-notes.Rmd):
 #
 #   system    an already-installed libdoltlite (pkg-config, DOLTLITE_HOME,
 #             DOLTLITE_CFLAGS/DOLTLITE_LIBS, or a common prefix)

@@ -12,7 +12,8 @@ Description: Embeds 'DoltLite' <https://github.com/dolthub/doltlite>, a fork of
     ordinary R functions. Works with 'dplyr' and 'dbplyr' through the 'DBI'
     interface.
 License: MIT + file LICENSE
-URL: https://github.com/CathalByrneGit/doltliter
+URL: https://github.com/CathalByrneGit/doltliter,
+    https://cathalbyrnegit.github.io/doltliter/
 BugReports: https://github.com/CathalByrneGit/doltliter/issues
 Encoding: UTF-8
 Depends: R (>= 3.6.0)

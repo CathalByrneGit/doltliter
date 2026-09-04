@@ -1,0 +1,160 @@
+url: https://cathalbyrnegit.github.io/doltliter/
+
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#2b6cb0"
+    code_color: "#1a4971"
+
+home:
+  title: A DBI backend for DoltLite, version-controlled SQLite
+  description: >
+    Standard DBI on one side, Git-style commits, branches, diffs and merges on
+    the other, over the same database file.
+
+navbar:
+  structure:
+    left:  [intro, articles, reference, news]
+    right: [search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: Branching, merging and conflicts
+        href: articles/version-control.html
+      - text: "Time travel: history, diffs and blame"
+        href: articles/time-travel.html
+      - text: Using dplyr
+        href: articles/dplyr.html
+      - text: "-------"
+      - text: Installation and linking strategies
+        href: articles/installation.html
+      - text: "-------"
+      - text: DBI conformance
+        href: articles/dbi-compliance.html
+      - text: Why a native binding, and how it links
+        href: articles/feasibility-notes.html
+
+reference:
+- title: Connecting
+  desc: >
+    Opening a database, optionally straight onto a branch. `dbConnect()` takes
+    the DoltLite-specific `branch`, `bigint` and `busy_timeout` arguments
+    alongside the usual DBI ones.
+  contents:
+  - Doltlite
+  - "dbConnect,DoltliteDriver-method"
+  - DOLTLITE_RO
+
+- title: DBI classes and methods
+  desc: >
+    The ordinary DBI surface. These behave as they would for any SQLite
+    database, with the documented exceptions around clustered primary keys and
+    transactions.
+  contents:
+  - DoltliteDriver-class
+  - DoltliteConnection-class
+  - DoltliteResult-class
+  - "dbWriteTable,DoltliteConnection,character,data.frame-method"
+  - "dbDataType,DoltliteDriver-method"
+  - doltliter-transactions
+
+- title: Configuring and committing
+  desc: >
+    The commit loop. Note that `dolt_commit()` is the *Dolt* sense of commit —
+    it writes to the version history — and is unrelated to `DBI::dbCommit()`.
+  contents:
+  - dolt_config
+  - dolt_add
+  - dolt_commit
+  - dolt_status
+  - dolt_reset
+  - dolt_revert
+  - dolt_cherry_pick
+
+- title: Branches, merging and conflicts
+  desc: >
+    Each connection selects its own branch. Conflicts exist only inside the
+    transaction that produced them, so a merge you expect to conflict belongs
+    in one.
+  contents:
+  - dolt_branch
+  - dolt_checkout
+  - dolt_active_branch
+  - dolt_merge
+  - dolt_merge_base
+  - dolt_merge_status
+  - dolt_rebase
+  - dolt_tag
+  - dolt_conflicts
+  - dolt_constraint_violations
+
+- title: History, diffs and time travel
+  desc: >
+    Reading the past: what changed, when, who changed it, and what a table
+    looked like at any revision.
+  contents:
+  - dolt_log
+  - dolt_diff
+  - dolt_table_diff
+  - dolt_diff_stat
+  - dolt_patch
+  - dolt_history
+  - dolt_at
+  - dolt_blame
+  - dolt_workspace
+  - dolt_schemas
+
+- title: Remotes
+  desc: Push, pull, fetch and clone over the filesystem or HTTP.
+  contents:
+  - dolt_remote
+  - dolt_push
+  - dolt_pull
+  - dolt_clone
+  - dolt_creds
+
+- title: Introspection and maintenance
+  contents:
+  - dolt_hashof
+  - dolt_version
+  - doltlite_engine
+  - dolt_gc
+  - dolt_verify_constraints
+
+- title: Calling anything else
+  desc: >
+    DoltLite's version-control surface is split between scalar SQL functions
+    and virtual tables. These two helpers reach whichever part this package
+    does not wrap yet, with arguments bound as parameters rather than pasted
+    into SQL.
+  contents:
+  - dolt_scalar
+  - dolt_table
+
+- title: Re-exported from DBI
+  contents:
+  - reexports
+
+articles:
+- title: Get started
+  navbar: ~
+  contents:
+  - doltliter
+
+- title: Going further
+  navbar: Articles
+  contents:
+  - version-control
+  - time-travel
+  - dplyr
+  - installation
+
+- title: Design notes
+  desc: >
+    Background on how the package is put together, kept on the site rather than
+    shipped in the package.
+  navbar: Design notes
+  contents:
+  - articles/dbi-compliance
+  - articles/feasibility-notes

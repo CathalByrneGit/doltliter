@@ -11,7 +11,7 @@
 #
 # Both follow from the package and constructor names, and neither affects how
 # the backend behaves. Everything else in the suite passes; see
-# docs/dbi-compliance.md.
+# the "DBI conformance" article on the package website.
 skip_if_not_installed("DBItest")
 
 # DBItest's round-trip fixtures contain non-ASCII text (e.g. "Müller"), which a

@@ -511,12 +511,31 @@ doltlite_table_name <- function(name) {
     return(unname(parts[[length(parts)]]))
   }
   if (methods::is(name, "SQL")) {
-    x <- as.character(name)
-    quoted <- grepl('^".*"$', x)
-    x[quoted] <- gsub('""', '"', sub('^"(.*)"$', "\\1", x[quoted]), fixed = TRUE)
-    return(x)
+    return(vapply(as.character(name), doltlite_unquote_identifier, character(1),
+                  USE.NAMES = FALSE))
   }
   as.character(name)
+}
+
+# Strip one layer of identifier quoting.
+#
+# All three styles have to be handled, not just the one this package emits.
+# dbQuoteIdentifier() here produces "double quotes", but dbplyr's SQLite
+# dialect quotes with `backticks`, so an already-quoted identifier arriving
+# from copy_to() or compute() is backticked. Missing that created tables
+# literally named `measurements`, backticks included, which then could not be
+# found by anything that quoted the name properly.
+doltlite_unquote_identifier <- function(x) {
+  if (grepl('^".*"$', x)) {
+    return(gsub('""', '"', sub('^"(.*)"$', "\\1", x), fixed = TRUE))
+  }
+  if (grepl("^`.*`$", x)) {
+    return(gsub("``", "`", sub("^`(.*)`$", "\\1", x), fixed = TRUE))
+  }
+  if (grepl("^\\[.*\\]$", x)) {
+    return(sub("^\\[(.*)\\]$", "\\1", x))
+  }
+  x
 }
 
 

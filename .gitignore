@@ -12,3 +12,6 @@ src/doltlite-lib/
 config.log
 doltliter.Rcheck/
 *.tar.gz
+
+# pkgdown output; the site is published from the gh-pages branch
+docs/

@@ -107,18 +107,18 @@ stable row identity there is nothing to attribute a change
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_log.html">dolt_log</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"committer"</span>, <span class="st">"date"</span>, <span class="st">"message"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;      committer                date                    message</span></span>
-<span><span class="co">#&gt; 1 Ada Lovelace 2026-09-04 20:37:45               Add sensor D</span></span>
-<span><span class="co">#&gt; 2 Ada Lovelace 2026-09-04 20:37:45       Recalibrate sensor B</span></span>
-<span><span class="co">#&gt; 3 Ada Lovelace 2026-09-04 20:37:45      First calibration run</span></span>
-<span><span class="co">#&gt; 4     doltlite 2026-09-04 20:37:45 Initialize data repository</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 Ada Lovelace 2026-09-04 21:01:10               Add sensor D</span></span>
+<span><span class="co">#&gt; 2 Ada Lovelace 2026-09-04 21:01:10       Recalibrate sensor B</span></span>
+<span><span class="co">#&gt; 3 Ada Lovelace 2026-09-04 21:01:10      First calibration run</span></span>
+<span><span class="co">#&gt; 4     doltlite 2026-09-04 21:01:10 Initialize data repository</span></span></code></pre></div>
 <p><code><a href="../reference/dolt_diff.html">dolt_diff()</a></code> works one level up — which <em>tables</em>
 changed in each commit, rather than which rows:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_diff.html">dolt_diff</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"readings"</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"commit_hash"</span>, <span class="st">"data_change"</span>, <span class="st">"schema_change"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                                commit_hash data_change schema_change</span></span>
-<span><span class="co">#&gt; 1 627765ba30b2bfe77b3d291d15612bcc95fc6752           1             0</span></span>
-<span><span class="co">#&gt; 2 d6033acb656f89999f92448579bfb4786aad9990           1             0</span></span>
-<span><span class="co">#&gt; 3 4fd9e3ec52623258b6252972059be4a17aa767ed           1             1</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 ffb6319119086a5873e0013259ece663888ef0b4           1             0</span></span>
+<span><span class="co">#&gt; 2 f439b798211b27e5cbef1585cefdbc4d2df0d233           1             0</span></span>
+<span><span class="co">#&gt; 3 b0ae9e1306452069285ab338e5892dcd672e217f           1             1</span></span></code></pre></div>
 <p>Uncommitted work shows up under the pseudo-commit
 <code>WORKING</code>, which is a convenient way to see whether anything
 is pending:</p>
@@ -195,9 +195,9 @@ right tool for “plot this value over time”:</p>
 <code class="sourceCode R"><span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dolt_history.html">dolt_history</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"readings"</span><span class="op">)</span></span>
 <span><span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">id</span> <span class="op">==</span> <span class="fl">2</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"sensor"</span>, <span class="st">"value"</span>, <span class="st">"commit_hash"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;   id sensor value                              commit_hash</span></span>
-<span><span class="co">#&gt; 2  2      B  21.5 627765ba30b2bfe77b3d291d15612bcc95fc6752</span></span>
-<span><span class="co">#&gt; 6  2      B  21.5 d6033acb656f89999f92448579bfb4786aad9990</span></span>
-<span><span class="co">#&gt; 9  2      B  20.0 4fd9e3ec52623258b6252972059be4a17aa767ed</span></span></code></pre></div>
+<span><span class="co">#&gt; 2  2      B  21.5 ffb6319119086a5873e0013259ece663888ef0b4</span></span>
+<span><span class="co">#&gt; 6  2      B  21.5 f439b798211b27e5cbef1585cefdbc4d2df0d233</span></span>
+<span><span class="co">#&gt; 9  2      B  20.0 b0ae9e1306452069285ab338e5892dcd672e217f</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="who-changed-this-row">Who changed this row<a class="anchor" aria-label="anchor" href="#who-changed-this-row"></a>
@@ -223,7 +223,7 @@ and the table and database hashes are <em>history-independent</em>: the
 same rows hash the same regardless of how they got there.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_hashof.html">dolt_hashof</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"HEAD"</span><span class="op">)</span>        <span class="co"># commit hash — covers the timestamp too</span></span>
-<span><span class="co">#&gt; [1] "627765ba30b2bfe77b3d291d15612bcc95fc6752"</span></span>
+<span><span class="co">#&gt; [1] "ffb6319119086a5873e0013259ece663888ef0b4"</span></span>
 <span><span class="fu"><a href="../reference/dolt_hashof.html">dolt_hashof_table</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"readings"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "6cf508013fc3b1e71c3686c3d24fcb1ab0a78d02"</span></span>
 <span><span class="fu"><a href="../reference/dolt_hashof.html">dolt_hashof_db</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>

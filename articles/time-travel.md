@@ -44,10 +44,10 @@ dolt_commit(con, "Add sensor D")
 
 dolt_log(con)[, c("committer", "date", "message")]
 #>      committer                date                    message
-#> 1 Ada Lovelace 2026-09-04 20:37:45               Add sensor D
-#> 2 Ada Lovelace 2026-09-04 20:37:45       Recalibrate sensor B
-#> 3 Ada Lovelace 2026-09-04 20:37:45      First calibration run
-#> 4     doltlite 2026-09-04 20:37:45 Initialize data repository
+#> 1 Ada Lovelace 2026-09-04 21:01:10               Add sensor D
+#> 2 Ada Lovelace 2026-09-04 21:01:10       Recalibrate sensor B
+#> 3 Ada Lovelace 2026-09-04 21:01:10      First calibration run
+#> 4     doltlite 2026-09-04 21:01:10 Initialize data repository
 ```
 
 [`dolt_diff()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_diff.md)
@@ -58,9 +58,9 @@ which rows:
 
 dolt_diff(con, "readings")[, c("commit_hash", "data_change", "schema_change")]
 #>                                commit_hash data_change schema_change
-#> 1 627765ba30b2bfe77b3d291d15612bcc95fc6752           1             0
-#> 2 d6033acb656f89999f92448579bfb4786aad9990           1             0
-#> 3 4fd9e3ec52623258b6252972059be4a17aa767ed           1             1
+#> 1 ffb6319119086a5873e0013259ece663888ef0b4           1             0
+#> 2 f439b798211b27e5cbef1585cefdbc4d2df0d233           1             0
+#> 3 b0ae9e1306452069285ab338e5892dcd672e217f           1             1
 ```
 
 Uncommitted work shows up under the pseudo-commit `WORKING`, which is a
@@ -164,9 +164,9 @@ over time”:
 h <- dolt_history(con, "readings")
 h[h$id == 2, c("id", "sensor", "value", "commit_hash")]
 #>   id sensor value                              commit_hash
-#> 2  2      B  21.5 627765ba30b2bfe77b3d291d15612bcc95fc6752
-#> 6  2      B  21.5 d6033acb656f89999f92448579bfb4786aad9990
-#> 9  2      B  20.0 4fd9e3ec52623258b6252972059be4a17aa767ed
+#> 2  2      B  21.5 ffb6319119086a5873e0013259ece663888ef0b4
+#> 6  2      B  21.5 f439b798211b27e5cbef1585cefdbc4d2df0d233
+#> 9  2      B  20.0 b0ae9e1306452069285ab338e5892dcd672e217f
 ```
 
 ## Who changed this row
@@ -197,7 +197,7 @@ hash the same regardless of how they got there.
 ``` r
 
 dolt_hashof(con, "HEAD")        # commit hash — covers the timestamp too
-#> [1] "627765ba30b2bfe77b3d291d15612bcc95fc6752"
+#> [1] "ffb6319119086a5873e0013259ece663888ef0b4"
 dolt_hashof_table(con, "readings")
 #> [1] "6cf508013fc3b1e71c3686c3d24fcb1ab0a78d02"
 dolt_hashof_db(con)

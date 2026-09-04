@@ -18,7 +18,7 @@ path <- tempfile(fileext = ".db")
 con <- DBI::dbConnect(Doltlite(), path)
 con
 #> <DoltliteConnection>
-#>   Database: /tmp/Rtmp4Oeuzw/file1f89112dda49.db
+#>   Database: /tmp/RtmpWMvVe5/file1f5c6010d418.db
 #>   Branch:   main
 ```
 
@@ -177,7 +177,7 @@ DBI::dbExecute(con, "UPDATE users SET name = 'ADA' WHERE id = 1")
 dolt_diff(con, "users")[, c("commit_hash", "table_name", "data_change")]
 #>                                commit_hash table_name data_change
 #> 1                                  WORKING      users           1
-#> 2 d18ad0fb5ce8312618ba177f9673dd191143ecd1      users           1
+#> 2 fba2dbfe65a09a72cb67a007cc3d72507c9ce665      users           1
 dolt_reset(con, "hard")
 ```
 
@@ -196,7 +196,7 @@ A clean merge just works:
 ``` r
 
 dolt_merge(con, "experiment")
-#> [1] "2d10f4ef685542264ac561cfc3942b1dcb8c6c0c"
+#> [1] "43673dbcc8cb107ed3e75d543cba2e5dbe16d0c9"
 DBI::dbGetQuery(con, "SELECT id, name, active FROM users ORDER BY id")
 #>   id name active
 #> 1  1  ada      1
@@ -348,7 +348,7 @@ DBI::dbReadTable(clone, "users")
 #> 3  3 cleo      1
 dolt_remotes(clone)[, c("name", "url")]
 #>     name                                        url
-#> 1 origin file:///tmp/Rtmp4Oeuzw/file1f8945165bb7.db
+#> 1 origin file:///tmp/RtmpWMvVe5/file1f5c244e4de5.db
 DBI::dbDisconnect(clone)
 ```
 

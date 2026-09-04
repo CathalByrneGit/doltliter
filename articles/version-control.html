@@ -137,7 +137,7 @@ branch will see the same working set.</p>
 returns the new commit hash:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_merge.html">dolt_merge</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"review"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "9af2cd612f16885fcc9eb93170f2bd2355a9b5a1"</span></span>
+<span><span class="co">#&gt; [1] "4dde08f37620582e6542981123dabaf1ad0105f6"</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT name, active FROM sites ORDER BY id"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;           name active</span></span>
 <span><span class="co">#&gt; 1  Ballycotton      1</span></span>
@@ -218,7 +218,7 @@ accidentally record a half-merged state.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_tag.html">dolt_tag</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"v1.0"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/dolt_tag.html">dolt_tags</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span></span>
 <span><span class="co">#&gt;   tag_name                                 tag_hash</span></span>
-<span><span class="co">#&gt; 1     v1.0 72f3de16d67a5d45c8141529181e8c090b303fa0</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     v1.0 feaaae43105512e3e009c2838f3037642426a65c</span></span></code></pre></div>
 <p>They work anywhere a ref does —
 <code>dolt_at(con, "sites", "v1.0")</code>, or as a diff endpoint.</p>
 </div>
@@ -246,7 +246,7 @@ already committed. It does not rewrite history — it writes a
 <span><span class="va">oops</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dolt_commit.html">dolt_commit</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"Add Blackrock"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/dolt_revert.html">dolt_revert</a></span><span class="op">(</span><span class="va">con</span>, <span class="va">oops</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "b29bcf3ceff19d5a521ac36a8dab69996dffcf77"</span></span>
+<span><span class="co">#&gt; [1] "110cb5b9c3bff99d5f7cb13f804abad94b225f79"</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT count(*) AS n FROM sites"</span><span class="op">)</span><span class="op">$</span><span class="va">n</span></span>
 <span><span class="co">#&gt; [1] 4</span></span>
 <span><span class="fu"><a href="../reference/dolt_log.html">dolt_log</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span><span class="op">$</span><span class="va">message</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span></span>

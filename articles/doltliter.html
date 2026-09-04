@@ -85,7 +85,7 @@ commit, branch, modify, diff, merge, and resolve a conflict.</p>
 <span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu"><a href="../reference/Doltlite.html">Doltlite</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">path</span><span class="op">)</span></span>
 <span><span class="va">con</span></span>
 <span><span class="co">#&gt; &lt;DoltliteConnection&gt;</span></span>
-<span><span class="co">#&gt;   Database: /tmp/Rtmp4Oeuzw/file1f89112dda49.db</span></span>
+<span><span class="co">#&gt;   Database: /tmp/RtmpWMvVe5/file1f5c6010d418.db</span></span>
 <span><span class="co">#&gt;   Branch:   main</span></span></code></pre></div>
 <p>One caveat worth stating up front: pass a real path, not
 <code>""</code>. SQLite’s anonymous temporary database is created in the
@@ -205,7 +205,7 @@ uncommitted changes:</p>
 <span><span class="fu"><a href="../reference/dolt_diff.html">dolt_diff</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"users"</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"commit_hash"</span>, <span class="st">"table_name"</span>, <span class="st">"data_change"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                                commit_hash table_name data_change</span></span>
 <span><span class="co">#&gt; 1                                  WORKING      users           1</span></span>
-<span><span class="co">#&gt; 2 d18ad0fb5ce8312618ba177f9673dd191143ecd1      users           1</span></span>
+<span><span class="co">#&gt; 2 fba2dbfe65a09a72cb67a007cc3d72507c9ce665      users           1</span></span>
 <span><span class="fu"><a href="../reference/dolt_reset.html">dolt_reset</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"hard"</span><span class="op">)</span></span></code></pre></div>
 <p>For summaries rather than rows, there are
 <code><a href="../reference/dolt_diff_stat.html">dolt_diff_stat()</a></code>, <code><a href="../reference/dolt_diff_stat.html">dolt_diff_summary()</a></code> and
@@ -218,7 +218,7 @@ uncommitted changes:</p>
 <p>A clean merge just works:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_merge.html">dolt_merge</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"experiment"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "2d10f4ef685542264ac561cfc3942b1dcb8c6c0c"</span></span>
+<span><span class="co">#&gt; [1] "43673dbcc8cb107ed3e75d543cba2e5dbe16d0c9"</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT id, name, active FROM users ORDER BY id"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   id name active</span></span>
 <span><span class="co">#&gt; 1  1  ada      1</span></span>
@@ -344,7 +344,7 @@ the filesystem or HTTP:</p>
 <span><span class="co">#&gt; 3  3 cleo      1</span></span>
 <span><span class="fu"><a href="../reference/dolt_remote.html">dolt_remotes</a></span><span class="op">(</span><span class="va">clone</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"name"</span>, <span class="st">"url"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;     name                                        url</span></span>
-<span><span class="co">#&gt; 1 origin file:///tmp/Rtmp4Oeuzw/file1f8945165bb7.db</span></span>
+<span><span class="co">#&gt; 1 origin file:///tmp/RtmpWMvVe5/file1f5c244e4de5.db</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">clone</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">

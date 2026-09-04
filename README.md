@@ -184,6 +184,13 @@ strategy 2 exists: staging the amalgamation with
 `tools/vendor_amalgamation.R` produces a tree that builds with no network
 access at all, which is the form a CRAN submission would take.
 
+One thing to know before submitting that way: the vendored amalgamation
+suppresses compiler diagnostics, as SQLite's own does, so `R CMD check`
+reports `checking pragmas in C/C++ headers and code ... WARNING`. It is an
+accurate statement about third-party generated source rather than a defect
+here, and it cannot be resolved without editing that source. See
+[`docs/feasibility-notes.md`](docs/feasibility-notes.md).
+
 ## DBI conformance
 
 The full `DBItest` suite runs as part of the test suite and passes, apart from

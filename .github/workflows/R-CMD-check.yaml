@@ -22,18 +22,18 @@ jobs:
       matrix:
         config:
           # Linux x86_64: a system install, the cheapest path.
-          - {os: ubuntu-latest,  r: 'release', strategy: system}
+          - {os: ubuntu-latest,  r: 'release', strategy: system,   error_on: warning}
           # Linux x86_64: the vendored amalgamation, i.e. the CRAN path.
-          - {os: ubuntu-latest,  r: 'release', strategy: vendor}
+          - {os: ubuntu-latest,  r: 'release', strategy: vendor,   error_on: error}
           # Linux x86_64: the release library download.
-          - {os: ubuntu-latest,  r: 'release', strategy: download}
-          - {os: ubuntu-latest,  r: 'oldrel-1', strategy: system}
+          - {os: ubuntu-latest,  r: 'release', strategy: download, error_on: warning}
+          - {os: ubuntu-latest,  r: 'oldrel-1', strategy: system,  error_on: warning}
           # Apple Silicon: a prebuilt osx-arm64 library exists.
-          - {os: macos-latest,   r: 'release', strategy: download}
+          - {os: macos-latest,   r: 'release', strategy: download, error_on: warning}
           # Intel macOS has no published lib asset at all, so it must vendor.
-          - {os: macos-13,       r: 'release', strategy: vendor}
+          - {os: macos-13,       r: 'release', strategy: vendor,   error_on: error}
           # Windows ships only a DLL with no import library, so it must vendor.
-          - {os: windows-latest, r: 'release', strategy: vendor}
+          - {os: windows-latest, r: 'release', strategy: vendor,   error_on: error}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -72,6 +72,32 @@ jobs:
         with:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
+          error-on: '"${{ matrix.config.error_on }}"'
+
+      # The vendor strategy compiles DoltLite's generated amalgamation, which
+      # carries diagnostic-suppressing pragmas, so R CMD check reports
+      #
+      #   checking pragmas in C/C++ headers and code ... WARNING
+      #
+      # That is a true statement about vendored upstream code, not a defect in
+      # this package, and it cannot be fixed without editing third-party
+      # generated source. So warnings are not fatal on those jobs -- but that
+      # must not become a blanket amnesty, hence this guard: any warning other
+      # than the pragma one still fails the build.
+      - name: Allow only the known pragma warning
+        if: matrix.config.strategy == 'vendor'
+        run: |
+          log=$(find check -name '00check.log' | head -1)
+          if [ -z "$log" ]; then echo "no check log found"; exit 1; fi
+          unexpected=$(grep -E '^\* checking .* \.\.\. WARNING' "$log" \
+                       | grep -v 'checking pragmas in C/C\+\+ headers and code' || true)
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected WARNING(s) beyond the known vendored-pragma one:"
+            echo "$unexpected"
+            exit 1
+          fi
+          echo "only the known vendored-pragma warning is present"
+        shell: bash
 
       # check-r-package checks a tarball in its own directory and does not
       # leave the package on the library path, so install it before asking it

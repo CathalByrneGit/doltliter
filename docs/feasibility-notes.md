@@ -249,6 +249,37 @@ recorded here because each one is a trap for the next person:
   and degrades to dbplyr's default translation rather than taking a hard
   dependency on another SQLite backend.
 
+### Known trade-off: the vendored amalgamation trips R's pragma check
+
+`R CMD check --as-cran` on a tree carrying the amalgamation reports:
+
+```
+* checking pragmas in C/C++ headers and code ... WARNING
+File which contains non-portable pragma(s)
+  'src/doltlite/doltlite.c'
+File which contains pragma(s) suppressing diagnostics:
+  'src/doltlite/doltlite.c'
+```
+
+This is accurate: DoltLite's generated amalgamation does suppress compiler
+diagnostics, as SQLite's own amalgamation does. `tools:::.check_pragmas()`
+scans `src/` and `inst/include` recursively for
+`#pragma (GCC|clang) diagnostic ignored` and for a list of non-portable
+warning names, and there is no environment variable to switch it off.
+
+It cannot be fixed from this side without editing third-party generated
+source, which would be worse than the warning. Three consequences:
+
+* **CI**: the vendor jobs run with `error-on: error` rather than the default
+  `error-on: warning`, since otherwise a warning that is not this package's to
+  fix would fail them. A guard step then rejects any *other* warning, so this
+  is not a blanket amnesty.
+* **CRAN**: a submission shipping the amalgamation will carry this warning and
+  will need it explained in the submission comments. That is the price of the
+  no-network install path; the `system` and `download` strategies do not
+  trigger it, because the engine arrives prebuilt with no C sources to scan.
+* It is a WARNING, not an ERROR, and it does not affect the built package.
+
 ### Known trade-off: installed size
 
 Statically linking `libdoltlite.a` (38 MB on disk, ~19 MB linked) makes the

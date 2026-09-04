@@ -29,6 +29,11 @@ RBIN="${R_HOME}/bin/R"
 
 CC=`"$RBIN" CMD config CC`
 CFLAGS=`"$RBIN" CMD config CFLAGS`
+# R keeps the position-independent-code flag separate from CFLAGS. The
+# amalgamation object is linked into a shared library, so it needs this;
+# without it the link fails with "relocation ... can not be used when making a
+# shared object".
+CPICFLAGS=`"$RBIN" CMD config CPICFLAGS`
 CPPFLAGS=`"$RBIN" CMD config CPPFLAGS`
 LDFLAGS=`"$RBIN" CMD config LDFLAGS`
 
@@ -163,14 +168,20 @@ find_vendor() {
 #include "doltlite/doltlite.c"
 EOF
 
-  say "compiling the DoltLite amalgamation to validate flags (takes a minute)"
-  if ! $CC $CPPFLAGS -I./src/doltlite $CFLAGS -c src/doltlite_amalgamation.c \
-         -o "$probe_dir/doltlite_amalgamation.o" >> "$LOG" 2>&1; then
+  # Compile straight to the object make will want, rather than to a throwaway
+  # in the probe directory. The amalgamation is ~20 MB of C and takes about a
+  # minute; doing it once here and letting make find the result up to date
+  # halves the vendored build. The wrapper's #include is relative to src/, so
+  # this resolves the same way from either directory.
+  say "compiling the DoltLite amalgamation (about a minute)"
+  if ! $CC $CPPFLAGS $CFLAGS $CPICFLAGS -c src/doltlite_amalgamation.c \
+         -o src/doltlite_amalgamation.o >> "$LOG" 2>&1; then
     say "the vendored amalgamation did not compile; see $LOG"
+    rm -f src/doltlite_amalgamation.o
     return 1
   fi
 
-  try_with "-I./src/doltlite" "$probe_dir/doltlite_amalgamation.o" || return 1
+  try_with "-I./src/doltlite" "src/doltlite_amalgamation.o" || return 1
 
   # make builds the object itself, from src/, so hand it src-relative flags.
   VENDOR_OBJECTS="doltlite_amalgamation.o"

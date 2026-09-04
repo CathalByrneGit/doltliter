@@ -5,7 +5,6 @@
 [![pkgdown](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml)
 <!-- badges: end -->
 
-📖 **Documentation: <https://cathalbyrnegit.github.io/doltliter/>**
 
 A [DBI](https://dbi.r-dbi.org) backend for
 [DoltLite](https://github.com/dolthub/doltlite) — a fork of SQLite whose

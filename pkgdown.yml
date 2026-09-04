@@ -1,0 +1,15 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  articles/dbi-compliance: dbi-compliance.html
+  doltliter: doltliter.html
+  dplyr: dplyr.html
+  articles/feasibility-notes: feasibility-notes.html
+  installation: installation.html
+  time-travel: time-travel.html
+  version-control: version-control.html
+last_built: 2026-09-04T20:29Z
+urls:
+  reference: https://cathalbyrnegit.github.io/doltliter/reference
+  article: https://cathalbyrnegit.github.io/doltliter/articles

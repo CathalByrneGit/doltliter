@@ -1,0 +1,142 @@
+# Installation and linking strategies
+
+`doltliter` embeds a C library. Unlike RSQLite, which vendors
+`sqlite3.c` and compiles it unconditionally, this package has to *find*
+a `libdoltlite` to build against — and the right way to do that differs
+by platform. This article explains what `configure` does, so that when
+it picks something unexpected you know why.
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("CathalByrneGit/doltliter")
+```
+
+## The three strategies
+
+`configure` tries these in order of cost, and prints which one it chose.
+
+### 1. An installed DoltLite (`system`)
+
+Costs nothing if you already have DoltLite. `configure` looks at
+`pkg-config`, then `DOLTLITE_HOME`, then explicit `DOLTLITE_CFLAGS` /
+`DOLTLITE_LIBS`, then the usual prefixes (`/usr/local`, `/usr`,
+`/opt/homebrew`, `/opt/local`).
+
+``` sh
+sudo bash -c 'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'
+# Debian/Ubuntu alternative: install libdoltlite-dev
+```
+
+### 2. A vendored amalgamation (`vendor`)
+
+DoltLite publishes a single-file amalgamation, the same shape as
+SQLite’s. Staging it means the package compiles with **no network access
+at install time**, which is the form a CRAN submission would take, and
+pins the DoltLite version exactly.
+
+``` sh
+Rscript tools/vendor_amalgamation.R
+R CMD INSTALL .
+```
+
+It costs about a minute of compile time. This is the default on Windows
+and Intel macOS, for reasons in the next section.
+
+### 3. A downloaded release library (`download`)
+
+`configure` fetches the prebuilt library matching your OS and
+architecture from DoltLite’s GitHub releases. Best for a one-line
+`install_github()` on a machine with no system install.
+
+### Forcing one
+
+``` sh
+DOLTLITER_STRATEGY=system   R CMD INSTALL .   # or vendor, download
+DOLTLITE_VERSION=0.50.3     R CMD INSTALL .   # pin the DoltLite version
+```
+
+## Why Windows and Intel macOS vendor
+
+This is not arbitrary. Checking the actual release artifacts turned up
+two things the upstream README does not mention:
+
+- A Windows library archive **does** exist — but it contains only
+  `libdoltlite.dll`, with no static archive and no `.lib` / `.dll.a`
+  import library. There is nothing for Rtools to link against, so a
+  prebuilt library is not usable there.
+- **No Intel macOS library is published at all.** `install.sh` lists
+  `osx-x64` among its targets, but no such asset exists.
+
+On both platforms the amalgamation is the only route that works, so
+`configure` reaches for it first.
+
+## Checking what you got
+
+`configure` finishes by compiling and running a probe that asserts the
+engine really is DoltLite’s prolly tree, so a build that accidentally
+linked stock SQLite fails at install time rather than at your first
+`dolt_*` call. You can re-check at any point:
+
+``` r
+
+library(doltliter)
+
+doltlite_engine()    # "prolly" for a DoltLite build
+#> [1] "prolly"
+doltlite_version()   # the bundled SQLite version
+#> [1] "3.54.0"
+```
+
+[`dolt_version()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_version.md)
+needs a connection, and reports the DoltLite release:
+
+``` r
+
+con <- DBI::dbConnect(Doltlite(), tempfile(fileext = ".db"))
+dolt_version(con)
+#> [1] "v0.50.4"
+DBI::dbGetInfo(con)[c("doltlite.engine", "doltlite.version", "branch")]
+#> $doltlite.engine
+#> [1] "prolly"
+#> 
+#> $doltlite.version
+#> [1] "v0.50.4"
+#> 
+#> $branch
+#> [1] "main"
+DBI::dbDisconnect(con)
+```
+
+## Two things that will surprise you
+
+**An empty `dbname` is not version controlled.** SQLite’s anonymous
+temporary database is created in the *original* B-tree format, so none
+of the `dolt_*` functions exist there. The package says so plainly
+rather than letting SQLite report “no such function”:
+
+``` r
+
+tmp <- DBI::dbConnect(Doltlite(), "")
+DBI::dbGetQuery(tmp, "SELECT doltlite_engine() AS engine")
+#>   engine
+#> 1   orig
+dolt_status(tmp)
+#> Error:
+#> ! dolt_status() needs a DoltLite-format database, but this connection reports engine 'orig'.
+#> Anonymous temporary databases (dbname = "") and attached stock SQLite files are not version controlled; connect to a file path instead.
+```
+
+Use a real path — [`tempfile()`](https://rdrr.io/r/base/tempfile.html)
+is fine — whenever you want version control.
+
+**The installed package is large.** Around 19 MB, because the engine is
+statically linked into the shared library. That is inherent to embedding
+DoltLite, and the same trade RSQLite makes with `sqlite3.c`.
+
+## If the build fails
+
+`configure` writes everything it tried to `config.log` in the package
+root. That file names the compiler invocation, the candidate link lines
+and which one succeeded, and is the first place to look. The error
+message also lists the three remedies above.

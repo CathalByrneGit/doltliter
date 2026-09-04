@@ -1,5 +1,7 @@
 # doltliter
 
+📖 **Documentation: <https://cathalbyrnegit.github.io/doltliter/>**
+
 A [DBI](https://dbi.r-dbi.org) backend for
 [DoltLite](https://github.com/dolthub/doltlite) — a fork of SQLite whose
 storage engine is a content-addressed prolly tree, giving you Git-style

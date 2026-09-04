@@ -16,6 +16,9 @@ jobs:
   check:
     runs-on: ${{ matrix.config.os }}
     name: ${{ matrix.config.os }} / R ${{ matrix.config.r }} / ${{ matrix.config.strategy }}
+    # Without this a job that never finds a runner keeps the whole run in
+    # "queued" indefinitely, so nothing ever reports.
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -31,7 +34,11 @@ jobs:
           # Apple Silicon: a prebuilt osx-arm64 library exists.
           - {os: macos-latest,   r: 'release', strategy: download, error_on: warning}
           # Intel macOS has no published lib asset at all, so it must vendor.
-          - {os: macos-13,       r: 'release', strategy: vendor,   error_on: error}
+          # Note the runner label: macos-13 is retired, and a job asking for a
+          # retired label never gets picked up -- it sits queued forever and
+          # the whole run never reaches a conclusion, which is worse than a
+          # visible failure. macos-15-intel is the current Intel runner.
+          - {os: macos-15-intel, r: 'release', strategy: vendor,   error_on: error}
           # Windows ships only a DLL with no import library, so it must vendor.
           - {os: windows-latest, r: 'release', strategy: vendor,   error_on: error}
 

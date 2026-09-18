@@ -95,13 +95,13 @@ needs a connection, and reports the DoltLite release:
 
 con <- DBI::dbConnect(Doltlite(), tempfile(fileext = ".db"))
 dolt_version(con)
-#> [1] "v0.50.4"
+#> [1] "v0.50.11"
 DBI::dbGetInfo(con)[c("doltlite.engine", "doltlite.version", "branch")]
 #> $doltlite.engine
 #> [1] "prolly"
 #> 
 #> $doltlite.version
-#> [1] "v0.50.4"
+#> [1] "v0.50.11"
 #> 
 #> $branch
 #> [1] "main"

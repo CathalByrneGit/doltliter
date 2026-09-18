@@ -45,49 +45,21 @@ tbl(con, "users") |> filter(active == 1) |> collect()
 remotes::install_github("CathalByrneGit/doltliter")
 ```
 
-The package needs a `libdoltlite` to build against. `configure` finds
-one for you, trying three strategies in order of cost:
+The package compiles against a `libdoltlite`, and `configure` finds one
+for you: an already-installed DoltLite if you have one, otherwise a
+vendored amalgamation or a prebuilt release library. It then runs a
+probe asserting the engine really is `prolly`, so a build that
+accidentally linked stock SQLite fails at install time rather than at
+the first `dolt_*` call.
 
-1.  **An installed DoltLite** — found via `pkg-config`, `DOLTLITE_HOME`,
-    explicit `DOLTLITE_CFLAGS`/`DOLTLITE_LIBS`, or a common prefix
-    (`/usr/local`, `/opt/homebrew`, …). Costs nothing, and is used
-    automatically if you already have DoltLite installed:
-
-    ``` sh
-    sudo bash -c 'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'
-    # or, on Debian/Ubuntu: install libdoltlite-dev
-    ```
-
-2.  **A vendored amalgamation** — stage DoltLite’s single-file
-    amalgamation and compile it into the package. No network access at
-    install time, and the DoltLite version is pinned exactly:
-
-    ``` sh
-    Rscript tools/vendor_amalgamation.R
-    R CMD INSTALL .
-    ```
-
-    This takes about a minute to compile and is the default on Windows
-    and Intel macOS, where no usable prebuilt library is published.
-
-3.  **A downloaded release library** — `configure` fetches the prebuilt
-    `libdoltlite` matching your OS and architecture from DoltLite’s
-    GitHub releases.
-
-Force one with `DOLTLITER_STRATEGY=system|vendor|download`, and pin the
-DoltLite version with `DOLTLITE_VERSION`. `configure` finishes by
-compiling and running a small probe that asserts the engine really is
-`prolly`, so a build that accidentally linked stock SQLite fails loudly
-at install time rather than mysteriously at the first `dolt_*` call.
-
-The background to all of this — what the release artifacts actually
-contain, which platforms have no prebuilt library, and why Windows
-prefers the amalgamation — is in [Why a native binding, and how it
-links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html).
+Pick a strategy with `DOLTLITER_STRATEGY=system|vendor|download` and pin
+the engine with `DOLTLITE_VERSION`. Full details, and what to do when a
+build fails, are in [Installation and linking
+strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html).
 
 ## Two kinds of “commit”
 
-This is the one thing worth internalising before you start.
+The one thing worth internalising before you start.
 
 |  | What it does | When it matters |
 |----|----|----|
@@ -96,17 +68,12 @@ This is the one thing worth internalising before you start.
 
 `dbCommit()` is “save the file”;
 [`dolt_commit()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_commit.md)
-is “commit to the repository”. Data written and `dbCommit()`-ed is in
-the database but still uncommitted as far as Dolt is concerned — it
-shows up in
+is “commit to the repository”. Data that is written and `dbCommit()`-ed
+is in the database but still uncommitted as far as Dolt is concerned —
+it shows up in
 [`dolt_status()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_status.md)
 until you call
 [`dolt_commit()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_commit.md).
-
-One asymmetry:
-[`dolt_commit()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_commit.md)
-also ends the enclosing SQL transaction, so after calling it inside a
-`dbBegin()` block there is nothing left to `dbCommit()`.
 
 ## What you get
 
@@ -115,6 +82,8 @@ also ends the enclosing SQL transaction, so after calling it inside a
 `dbWriteTable`, `dbReadTable`, `dbAppendTable`, `dbCreateTable`,
 `dbListTables`, `dbListFields`, `dbExistsTable`, `dbRemoveTable`,
 `dbBegin`/`dbCommit`/ `dbRollback`, and the rest.
+[`dplyr::tbl()`](https://dplyr.tidyverse.org/reference/tbl.html) and
+lazy query translation work out of the box.
 
 **Version control** —
 
@@ -137,82 +106,28 @@ All arguments are passed as **bound parameters**, never interpolated
 into SQL, so a commit message containing quotes or semicolons is just a
 message.
 
-## Working on a branch
+## Documentation
 
-Pass `branch =` to connect straight onto one. It is translated to
-DoltLite’s `dbname@branch` path syntax internally:
+- [Version-controlled data with
+  doltliter](https://cathalbyrnegit.github.io/doltliter/articles/doltliter.html)
+  — start here.
+- [Branching, merging and
+  conflicts](https://cathalbyrnegit.github.io/doltliter/articles/version-control.html)
+- [Time travel: history, diffs and
+  blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html)
+- [Using
+  dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html)
+- [Installation and linking
+  strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html)
 
-``` r
-
-con <- DBI::dbConnect(doltliter::Doltlite(), "mydata.db", branch = "experiment")
-active_branch(con)
-#> [1] "experiment"
-```
-
-The branch must already exist. DoltLite would silently open `main` for a
-database that does not have it; `doltliter` checks and errors instead.
-
-Only the `@` form is emitted, never DoltLite’s equivalent `db/branch`
-form, which is impossible to tell apart from an ordinary path separator.
-
-## dplyr and dbplyr
-
-[`dplyr::tbl()`](https://dplyr.tidyverse.org/reference/tbl.html) and
-lazy query translation work out of the box — DoltLite’s SQL dialect *is*
-SQLite’s, so the package reuses dbplyr’s SQLite translation rather than
-defining its own.
-
-dbplyr version-gates a few of those translations by reading the SQLite
-version from RSQLite. If RSQLite is not installed, `doltliter` falls
-back to dbplyr’s default translation and says so once. Install RSQLite
-if you want the full SQLite translation table.
-
-## Things to know
-
-- **`dbname = ""`.** SQLite’s anonymous temporary database is created in
-  the *original* B-tree format, so version control is unavailable there.
-  Use a real path ([`tempfile()`](https://rdrr.io/r/base/tempfile.html))
-  if you need it. The `dolt_*` functions say so explicitly rather than
-  failing with “no such function”.
-- **Non-`INTEGER` primary keys are clustered.** Such a table has no
-  `rowid` at all and its key columns are `NOT NULL`, as with SQLite’s
-  `WITHOUT ROWID`. The default `dbWriteTable()` declares no primary key,
-  so this only bites if you ask for one via `field.types`.
-- **One durable writer at a time.** A second concurrent writer gets
-  `SQLITE_BUSY`; a transaction that tries to upgrade after a peer
-  advanced the store gets `SQLITE_BUSY_SNAPSHOT`. Both are retryable.
-  `dbConnect()` sets a 5-second busy timeout by default
-  (`busy_timeout =`).
-- **Conflicting merges need a transaction.** Conflicts exist only inside
-  the transaction that produced them, so an autocommit merge that
-  conflicts is rolled back whole. See
-  [`?dolt_merge`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_merge.md).
-- **Storage format is pinned.** DoltLite readers require an exact
-  chunk-store format match and return `SQLITE_NOTADB` otherwise;
-  `doltliter` translates that into a message saying so.
-
-## Distribution
-
-This package is distributed via GitHub. A `configure` script that
-downloads a binary at install time is a common CRAN rejection reason —
-which is why strategy 2 exists: staging the amalgamation with
-`tools/vendor_amalgamation.R` produces a tree that builds with no
-network access at all, which is the form a CRAN submission would take.
-
-One thing to know before submitting that way: the vendored amalgamation
-suppresses compiler diagnostics, as SQLite’s own does, so `R CMD check`
-reports `checking pragmas in C/C++ headers and code ... WARNING`. It is
-an accurate statement about third-party generated source rather than a
-defect here, and it cannot be resolved without editing that source. See
-[Why a native binding, and how it
-links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html).
-
-## DBI conformance
-
-The full `DBItest` suite runs as part of the test suite and passes,
-apart from two naming conventions that follow from the package’s own
-name. Details in [DBI
-conformance](https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html).
+Design notes: [DBI
+conformance](https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html)
+(the full `DBItest` suite runs in the test suite and passes, apart from
+two naming conventions that follow from the package’s own name) and [Why
+a native binding, and how it
+links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html)
+(release artifacts, platform coverage, and why a CRAN submission would
+vendor the amalgamation).
 
 ## License
 

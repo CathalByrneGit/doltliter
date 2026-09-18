@@ -85,7 +85,7 @@ returns the new commit hash:
 ``` r
 
 dolt_merge(con, "review")
-#> [1] "120f8597586361f3f070b9df2702548cdee60877"
+#> [1] "13ca6109f29bf2c1308212e1e1901dbb2e74aaae"
 DBI::dbGetQuery(con, "SELECT name, active FROM sites ORDER BY id")
 #>           name active
 #> 1  Ballycotton      1
@@ -197,7 +197,7 @@ Tags name a commit so you can come back to it:
 dolt_tag(con, "v1.0")
 dolt_tags(con)[, 1:2]
 #>   tag_name                                 tag_hash
-#> 1     v1.0 e8cb1b57b43375ffee36bd54b73beb31082f4792
+#> 1     v1.0 396da65f4cee875b1f37c7137543eb9d7fa02b79
 ```
 
 They work anywhere a ref does — `dolt_at(con, "sites", "v1.0")`, or as a
@@ -232,7 +232,7 @@ DBI::dbExecute(con, "INSERT INTO sites VALUES (5, 'Blackrock', 'CORK', 1)")
 oops <- dolt_commit(con, "Add Blackrock")
 
 dolt_revert(con, oops)
-#> [1] "97b54b14812e8469c330e9336206b66e8d78fbe3"
+#> [1] "5168a1353fc22967f3d5858bb573c7f9fdfc56b7"
 DBI::dbGetQuery(con, "SELECT count(*) AS n FROM sites")$n
 #> [1] 4
 dolt_log(con)$message[1:2]

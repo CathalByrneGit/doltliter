@@ -98,28 +98,13 @@
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"CathalByrneGit/doltliter"</span><span class="op">)</span></span></code></pre></div>
-<p>The package needs a <code>libdoltlite</code> to build against. <code>configure</code> finds one for you, trying three strategies in order of cost:</p>
-<ol style="list-style-type: decimal">
-<li>
-<p><strong>An installed DoltLite</strong> — found via <code>pkg-config</code>, <code>DOLTLITE_HOME</code>, explicit <code>DOLTLITE_CFLAGS</code>/<code>DOLTLITE_LIBS</code>, or a common prefix (<code>/usr/local</code>, <code>/opt/homebrew</code>, …). Costs nothing, and is used automatically if you already have DoltLite installed:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">sudo</span> bash <span class="at">-c</span> <span class="st">'curl -fsSL https://github.com/dolthub/doltlite/releases/latest/download/install.sh | bash'</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co"># or, on Debian/Ubuntu: install libdoltlite-dev</span></span></code></pre></div>
-</li>
-<li>
-<p><strong>A vendored amalgamation</strong> — stage DoltLite’s single-file amalgamation and compile it into the package. No network access at install time, and the DoltLite version is pinned exactly:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="ex">Rscript</span> tools/vendor_amalgamation.R</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL .</span></code></pre></div>
-<p>This takes about a minute to compile and is the default on Windows and Intel macOS, where no usable prebuilt library is published.</p>
-</li>
-<li><p><strong>A downloaded release library</strong> — <code>configure</code> fetches the prebuilt <code>libdoltlite</code> matching your OS and architecture from DoltLite’s GitHub releases.</p></li>
-</ol>
-<p>Force one with <code>DOLTLITER_STRATEGY=system|vendor|download</code>, and pin the DoltLite version with <code>DOLTLITE_VERSION</code>. <code>configure</code> finishes by compiling and running a small probe that asserts the engine really is <code>prolly</code>, so a build that accidentally linked stock SQLite fails loudly at install time rather than mysteriously at the first <code>dolt_*</code> call.</p>
-<p>The background to all of this — what the release artifacts actually contain, which platforms have no prebuilt library, and why Windows prefers the amalgamation — is in <a href="https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html">Why a native binding, and how it links</a>.</p>
+<p>The package compiles against a <code>libdoltlite</code>, and <code>configure</code> finds one for you: an already-installed DoltLite if you have one, otherwise a vendored amalgamation or a prebuilt release library. It then runs a probe asserting the engine really is <code>prolly</code>, so a build that accidentally linked stock SQLite fails at install time rather than at the first <code>dolt_*</code> call.</p>
+<p>Pick a strategy with <code>DOLTLITER_STRATEGY=system|vendor|download</code> and pin the engine with <code>DOLTLITE_VERSION</code>. Full details, and what to do when a build fails, are in <a href="https://cathalbyrnegit.github.io/doltliter/articles/installation.html">Installation and linking strategies</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="two-kinds-of-commit">Two kinds of “commit”<a class="anchor" aria-label="anchor" href="#two-kinds-of-commit"></a>
 </h2>
-<p>This is the one thing worth internalising before you start.</p>
+<p>The one thing worth internalising before you start.</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -144,13 +129,12 @@
 </tr>
 </tbody>
 </table>
-<p><code>dbCommit()</code> is “save the file”; <code><a href="reference/dolt_commit.html">dolt_commit()</a></code> is “commit to the repository”. Data written and <code>dbCommit()</code>-ed is in the database but still uncommitted as far as Dolt is concerned — it shows up in <code><a href="reference/dolt_status.html">dolt_status()</a></code> until you call <code><a href="reference/dolt_commit.html">dolt_commit()</a></code>.</p>
-<p>One asymmetry: <code><a href="reference/dolt_commit.html">dolt_commit()</a></code> also ends the enclosing SQL transaction, so after calling it inside a <code>dbBegin()</code> block there is nothing left to <code>dbCommit()</code>.</p>
+<p><code>dbCommit()</code> is “save the file”; <code><a href="reference/dolt_commit.html">dolt_commit()</a></code> is “commit to the repository”. Data that is written and <code>dbCommit()</code>-ed is in the database but still uncommitted as far as Dolt is concerned — it shows up in <code><a href="reference/dolt_status.html">dolt_status()</a></code> until you call <code><a href="reference/dolt_commit.html">dolt_commit()</a></code>.</p>
 </div>
 <div class="section level2">
 <h2 id="what-you-get">What you get<a class="anchor" aria-label="anchor" href="#what-you-get"></a>
 </h2>
-<p><strong>Standard DBI</strong> — <code>dbConnect</code>, <code>dbDisconnect</code>, <code>dbGetQuery</code>, <code>dbSendQuery</code>, <code>dbSendStatement</code>, <code>dbBind</code>, <code>dbFetch</code>, <code>dbColumnInfo</code>, <code>dbWriteTable</code>, <code>dbReadTable</code>, <code>dbAppendTable</code>, <code>dbCreateTable</code>, <code>dbListTables</code>, <code>dbListFields</code>, <code>dbExistsTable</code>, <code>dbRemoveTable</code>, <code>dbBegin</code>/<code>dbCommit</code>/ <code>dbRollback</code>, and the rest.</p>
+<p><strong>Standard DBI</strong> — <code>dbConnect</code>, <code>dbDisconnect</code>, <code>dbGetQuery</code>, <code>dbSendQuery</code>, <code>dbSendStatement</code>, <code>dbBind</code>, <code>dbFetch</code>, <code>dbColumnInfo</code>, <code>dbWriteTable</code>, <code>dbReadTable</code>, <code>dbAppendTable</code>, <code>dbCreateTable</code>, <code>dbListTables</code>, <code>dbListFields</code>, <code>dbExistsTable</code>, <code>dbRemoveTable</code>, <code>dbBegin</code>/<code>dbCommit</code>/ <code>dbRollback</code>, and the rest. <code><a href="https://dplyr.tidyverse.org/reference/tbl.html" class="external-link">dplyr::tbl()</a></code> and lazy query translation work out of the box.</p>
 <p><strong>Version control</strong> —</p>
 <table class="table">
 <colgroup>
@@ -204,48 +188,17 @@
 <p>All arguments are passed as <strong>bound parameters</strong>, never interpolated into SQL, so a commit message containing quotes or semicolons is just a message.</p>
 </div>
 <div class="section level2">
-<h2 id="working-on-a-branch">Working on a branch<a class="anchor" aria-label="anchor" href="#working-on-a-branch"></a>
-</h2>
-<p>Pass <code>branch =</code> to connect straight onto one. It is translated to DoltLite’s <code>dbname@branch</code> path syntax internally:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">doltliter</span><span class="fu">::</span><span class="fu"><a href="reference/Doltlite.html">Doltlite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"mydata.db"</span>, branch <span class="op">=</span> <span class="st">"experiment"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/dolt_active_branch.html">active_branch</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "experiment"</span></span></code></pre></div>
-<p>The branch must already exist. DoltLite would silently open <code>main</code> for a database that does not have it; <code>doltliter</code> checks and errors instead.</p>
-<p>Only the <code>@</code> form is emitted, never DoltLite’s equivalent <code>db/branch</code> form, which is impossible to tell apart from an ordinary path separator.</p>
-</div>
-<div class="section level2">
-<h2 id="dplyr-and-dbplyr">dplyr and dbplyr<a class="anchor" aria-label="anchor" href="#dplyr-and-dbplyr"></a>
-</h2>
-<p><code><a href="https://dplyr.tidyverse.org/reference/tbl.html" class="external-link">dplyr::tbl()</a></code> and lazy query translation work out of the box — DoltLite’s SQL dialect <em>is</em> SQLite’s, so the package reuses dbplyr’s SQLite translation rather than defining its own.</p>
-<p>dbplyr version-gates a few of those translations by reading the SQLite version from RSQLite. If RSQLite is not installed, <code>doltliter</code> falls back to dbplyr’s default translation and says so once. Install RSQLite if you want the full SQLite translation table.</p>
-</div>
-<div class="section level2">
-<h2 id="things-to-know">Things to know<a class="anchor" aria-label="anchor" href="#things-to-know"></a>
+<h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
 <ul>
 <li>
-<strong><code>dbname = ""</code>.</strong> SQLite’s anonymous temporary database is created in the <em>original</em> B-tree format, so version control is unavailable there. Use a real path (<code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile()</a></code>) if you need it. The <code>dolt_*</code> functions say so explicitly rather than failing with “no such function”.</li>
-<li>
-<strong>Non-<code>INTEGER</code> primary keys are clustered.</strong> Such a table has no <code>rowid</code> at all and its key columns are <code>NOT NULL</code>, as with SQLite’s <code>WITHOUT ROWID</code>. The default <code>dbWriteTable()</code> declares no primary key, so this only bites if you ask for one via <code>field.types</code>.</li>
-<li>
-<strong>One durable writer at a time.</strong> A second concurrent writer gets <code>SQLITE_BUSY</code>; a transaction that tries to upgrade after a peer advanced the store gets <code>SQLITE_BUSY_SNAPSHOT</code>. Both are retryable. <code>dbConnect()</code> sets a 5-second busy timeout by default (<code>busy_timeout =</code>).</li>
-<li>
-<strong>Conflicting merges need a transaction.</strong> Conflicts exist only inside the transaction that produced them, so an autocommit merge that conflicts is rolled back whole. See <code><a href="reference/dolt_merge.html">?dolt_merge</a></code>.</li>
-<li>
-<strong>Storage format is pinned.</strong> DoltLite readers require an exact chunk-store format match and return <code>SQLITE_NOTADB</code> otherwise; <code>doltliter</code> translates that into a message saying so.</li>
+<a href="https://cathalbyrnegit.github.io/doltliter/articles/doltliter.html">Version-controlled data with doltliter</a> — start here.</li>
+<li><a href="https://cathalbyrnegit.github.io/doltliter/articles/version-control.html">Branching, merging and conflicts</a></li>
+<li><a href="https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html">Time travel: history, diffs and blame</a></li>
+<li><a href="https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html">Using dplyr</a></li>
+<li><a href="https://cathalbyrnegit.github.io/doltliter/articles/installation.html">Installation and linking strategies</a></li>
 </ul>
-</div>
-<div class="section level2">
-<h2 id="distribution">Distribution<a class="anchor" aria-label="anchor" href="#distribution"></a>
-</h2>
-<p>This package is distributed via GitHub. A <code>configure</code> script that downloads a binary at install time is a common CRAN rejection reason — which is why strategy 2 exists: staging the amalgamation with <code>tools/vendor_amalgamation.R</code> produces a tree that builds with no network access at all, which is the form a CRAN submission would take.</p>
-<p>One thing to know before submitting that way: the vendored amalgamation suppresses compiler diagnostics, as SQLite’s own does, so <code>R CMD check</code> reports <code>checking pragmas in C/C++ headers and code ... WARNING</code>. It is an accurate statement about third-party generated source rather than a defect here, and it cannot be resolved without editing that source. See <a href="https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html">Why a native binding, and how it links</a>.</p>
-</div>
-<div class="section level2">
-<h2 id="dbi-conformance">DBI conformance<a class="anchor" aria-label="anchor" href="#dbi-conformance"></a>
-</h2>
-<p>The full <code>DBItest</code> suite runs as part of the test suite and passes, apart from two naming conventions that follow from the package’s own name. Details in <a href="https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html">DBI conformance</a>.</p>
+<p>Design notes: <a href="https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html">DBI conformance</a> (the full <code>DBItest</code> suite runs in the test suite and passes, apart from two naming conventions that follow from the package’s own name) and <a href="https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html">Why a native binding, and how it links</a> (release artifacts, platform coverage, and why a CRAN submission would vendor the amalgamation).</p>
 </div>
 <div class="section level2">
 <h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>

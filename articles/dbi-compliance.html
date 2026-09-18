@@ -193,6 +193,20 @@ format, where the <code>dolt_*</code> functions do not exist.</li>
 <code>wal</code> for a file-backed database and ignores attempts to
 change it; there is no WAL sidecar.</li>
 <li>
+<strong>A non-<code>INTEGER</code> primary key is
+clustered.</strong> Such a table has no <code>rowid</code> at all and
+its key columns are <code>NOT NULL</code>, as with SQLite’s
+<code>WITHOUT ROWID</code>. The default <code>dbWriteTable()</code>
+declares no primary key, so this only bites if you ask for one through
+<code>field.types</code>.</li>
+<li>
+<strong>The storage format is pinned.</strong> DoltLite readers
+require an exact chunk-store format match and return
+<code>SQLITE_NOTADB</code> for anything else — including a database
+written by a different DoltLite series. <code>doltliter</code>
+translates that into a message saying so, rather than letting it surface
+as “file is not a database”.</li>
+<li>
 <strong><code>dbstat</code> is unsupported</strong> on a
 DoltLite-format database, and <code>sqlite_master.sql</code> is a
 canonicalised projection of the prolly catalog rather than verbatim DDL

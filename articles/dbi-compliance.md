@@ -80,6 +80,15 @@ they will surprise someone expecting RSQLite:
   `dolt_*` functions do not exist.
 - **`PRAGMA journal_mode`** reports `wal` for a file-backed database and
   ignores attempts to change it; there is no WAL sidecar.
+- **A non-`INTEGER` primary key is clustered.** Such a table has no
+  `rowid` at all and its key columns are `NOT NULL`, as with SQLite’s
+  `WITHOUT ROWID`. The default `dbWriteTable()` declares no primary key,
+  so this only bites if you ask for one through `field.types`.
+- **The storage format is pinned.** DoltLite readers require an exact
+  chunk-store format match and return `SQLITE_NOTADB` for anything else
+  — including a database written by a different DoltLite series.
+  `doltliter` translates that into a message saying so, rather than
+  letting it surface as “file is not a database”.
 - **`dbstat` is unsupported** on a DoltLite-format database, and
   `sqlite_master.sql` is a canonicalised projection of the prolly
   catalog rather than verbatim DDL — so do not assert on exact DDL text.

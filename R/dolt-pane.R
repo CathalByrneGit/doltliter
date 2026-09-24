@@ -210,19 +210,32 @@ doltlite_pane_do_merge <- function(con, source) {
   list(state = "merged", message = paste(res, collapse = " "))
 }
 
-# Detail rows for the conflicted tables.
+# The conflicted tables and how many conflicts each has.
 #
-# dolt_conflicts() gives a per-table count; the base/ours/theirs columns live
-# in a per-table relation whose shape follows that table, so two conflicted
-# tables cannot be stacked into one frame. With a single table its detail is
-# shown, which is the common case and the useful one; with several, the
-# per-table summary is shown instead rather than inventing a merged shape.
-doltlite_pane_conflict_detail <- function(con, summary = NULL) {
-  if (is.null(summary)) summary <- dolt_conflicts(con)
-  if (is.null(summary) || nrow(summary) == 0L) return(NULL)
-  tables <- as.character(summary[[1L]])
-  if (length(tables) != 1L) return(summary)
-  dolt_conflicts_table(con, tables[[1L]])
+# Same stable-shape contract as doltlite_pane_status(): a zero-row frame when
+# there is nothing, so callers never branch on NULL.
+doltlite_pane_conflicted <- function(con) {
+  cf <- tryCatch(dolt_conflicts(con), error = function(e) NULL)
+  if (is.null(cf) || nrow(cf) == 0L) {
+    return(data.frame(table = character(), n = integer(),
+                      stringsAsFactors = FALSE))
+  }
+  data.frame(table = as.character(cf[[1L]]), n = as.integer(cf[[2L]]),
+             stringsAsFactors = FALSE)
+}
+
+# Detail rows for one conflicted table.
+#
+# The base/ours/theirs columns live in a per-table relation whose shape follows
+# that table, so two conflicted tables genuinely cannot be stacked into one
+# frame. Rather than fall back to a summary when there are several -- which
+# showed less the more there was to look at -- this always answers for exactly
+# one table, and the caller picks which.
+doltlite_pane_conflict_detail <- function(con, table = NULL) {
+  cf <- doltlite_pane_conflicted(con)
+  if (nrow(cf) == 0L) return(NULL)
+  if (is.null(table) || !table %in% cf$table) table <- cf$table[[1L]]
+  dolt_conflicts_table(con, table)
 }
 
 # Abandon a conflicted merge. Rolling back is what undoes it: conflicts
@@ -292,6 +305,13 @@ doltlite_pane_log_table <- function(lg) {
 #' transaction open and shows base, ours and theirs side by side, with buttons
 #' to keep one side, commit the result, or abort. Aborting rolls back, which
 #' restores the rows and clears the merge.
+#'
+#' Conflicts are handled one table at a time. The conflict columns follow the
+#' shape of the table they belong to, so several conflicted tables cannot share
+#' a view; a picker lists them with their counts and the detail follows your
+#' selection, and `Keep ours`/`Keep theirs` resolve the table you are looking
+#' at rather than every conflicted one. Tables leave the list as they are
+#' resolved, so it empties as you work through it.
 #'
 #' Two consequences worth knowing. A conflicted merge means an open
 #' transaction on your connection, so finish or abort it before going back to
@@ -573,7 +593,10 @@ doltlite_pane_server <- function(con) {
         shiny::h4(sprintf("Conflicts merging '%s'", src)),
         shiny::p(shiny::strong("This merge is holding a transaction open."),
                  " Resolve and commit, or abort, before using the console."),
-        DT::DTOutput("conflicts"),
+        shiny::fluidRow(
+          shiny::column(3, shiny::uiOutput("conflict_table_picker")),
+          shiny::column(9, DT::DTOutput("conflicts"))
+        ),
         shiny::br(),
         shiny::fluidRow(
           shiny::column(3, shiny::actionButton(
@@ -589,22 +612,52 @@ doltlite_pane_server <- function(con) {
       )
     })
 
-    output$conflicts <- DT::renderDT({
+    conflicted <- shiny::reactive({
       tick()
+      doltlite_pane_conflicted(con)
+    })
+
+    # Mirrors the Changes tab: one row per thing needing attention, with the
+    # detail on the right following the selection.
+    output$conflict_table_picker <- shiny::renderUI({
+      cf <- conflicted()
+      if (nrow(cf) == 0L) return(shiny::em("Nothing left to resolve."))
+      shiny::radioButtons(
+        "conflict_table", sprintf("Conflicted (%d)", nrow(cf)),
+        choiceNames = sprintf("%s \u2014 %d", cf$table, cf$n),
+        choiceValues = cf$table
+      )
+    })
+
+    output$conflicts <- DT::renderDT({
+      cf <- conflicted()
       shiny::req(merging())
-      summary <- tryCatch(dolt_conflicts(con), error = function(e) NULL)
-      if (is.null(summary) || nrow(summary) == 0L) {
-        return(doltlite_pane_conflicts_table(NULL))
-      }
-      detail <- tryCatch(doltlite_pane_conflict_detail(con, summary),
-                         error = function(e) NULL)
+      if (nrow(cf) == 0L) return(doltlite_pane_conflicts_table(NULL))
+      detail <- tryCatch(
+        doltlite_pane_conflict_detail(con, input$conflict_table),
+        error = function(e) NULL
+      )
       doltlite_pane_conflicts_table(detail)
     })
 
     resolve_with <- function(side) {
+      cf <- shiny::isolate(conflicted())
+      if (nrow(cf) == 0L) {
+        say("Nothing left to resolve.")
+        return()
+      }
+      tbl <- shiny::isolate(input$conflict_table)
+      if (is.null(tbl) || !tbl %in% cf$table) tbl <- cf$table[[1L]]
       res <- tryCatch({
-        dolt_conflicts_resolve(con, side)
-        sprintf("Resolved using %s. Commit the merge to finish.", side)
+        dolt_conflicts_resolve(con, side, tables = tbl)
+        left <- nrow(doltlite_pane_conflicted(con))
+        if (left == 0L) {
+          sprintf("Resolved '%s' using %s. Commit the merge to finish.",
+                  tbl, side)
+        } else {
+          sprintf("Resolved '%s' using %s; %d table(s) still conflicted.",
+                  tbl, side, left)
+        }
       }, error = function(e) paste("failed:", conditionMessage(e)))
       say(res)
       refresh()

@@ -301,7 +301,7 @@ test_that("merging a branch that does not exist fails cleanly", {
   expect_false(ns$doltlite_in_transaction(con))
 })
 
-test_that("conflict detail shows rows for one table and the summary for many", {
+test_that("conflict detail returns rows for one table", {
   skip_if_not_installed("DT")
   con <- local_dolt()
   diverge(con, conflict = TRUE)
@@ -318,6 +318,97 @@ test_that("conflict detail shows rows for one table and the summary for many", {
 
   ns$doltlite_pane_abort_merge(con)
   expect_null(ns$doltlite_pane_conflict_detail(con))
+})
+
+# ---- two conflicted tables ----------------------------------------------
+#
+# The case the picker exists for. Before it, this fell back to a per-table
+# summary, so the more there was to look at the less was shown.
+
+diverge_two <- function(con) {
+  DBI::dbExecute(con, "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+  DBI::dbExecute(con, "CREATE TABLE u (id INTEGER PRIMARY KEY, w TEXT)")
+  DBI::dbExecute(con, "INSERT INTO t VALUES (1,'base')")
+  DBI::dbExecute(con, "INSERT INTO u VALUES (1,'base')")
+  dolt_commit(con, "base")
+  dolt_checkout(con, "feature", create = TRUE)
+  DBI::dbExecute(con, "UPDATE t SET v = 'theirs' WHERE id = 1")
+  DBI::dbExecute(con, "UPDATE u SET w = 'theirs' WHERE id = 1")
+  dolt_commit(con, "feature edits")
+  dolt_checkout(con, "main")
+  DBI::dbExecute(con, "UPDATE t SET v = 'ours' WHERE id = 1")
+  DBI::dbExecute(con, "UPDATE u SET w = 'ours' WHERE id = 1")
+  dolt_commit(con, "main edits")
+  invisible(con)
+}
+
+test_that("both conflicted tables are listed, with their counts", {
+  con <- local_dolt()
+  diverge_two(con)
+  expect_identical(ns$doltlite_pane_do_merge(con, "feature")$state,
+                   "conflicted")
+
+  cf <- ns$doltlite_pane_conflicted(con)
+  expect_setequal(cf$table, c("t", "u"))
+  expect_true(all(cf$n == 1L))
+
+  ns$doltlite_pane_abort_merge(con)
+})
+
+test_that("detail follows the selected table rather than collapsing", {
+  con <- local_dolt()
+  diverge_two(con)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  dt <- ns$doltlite_pane_conflict_detail(con, "t")
+  du <- ns$doltlite_pane_conflict_detail(con, "u")
+  # Each answers with that table's own columns, not a shared summary.
+  expect_true("our_v" %in% names(dt))
+  expect_true("our_w" %in% names(du))
+  expect_false("our_w" %in% names(dt))
+
+  ns$doltlite_pane_abort_merge(con)
+})
+
+test_that("an unknown or missing table falls back to the first conflicted one", {
+  con <- local_dolt()
+  diverge_two(con)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  first <- ns$doltlite_pane_conflicted(con)$table[[1L]]
+  expect_identical(names(ns$doltlite_pane_conflict_detail(con, "no-such")),
+                   names(ns$doltlite_pane_conflict_detail(con, first)))
+  expect_identical(names(ns$doltlite_pane_conflict_detail(con, NULL)),
+                   names(ns$doltlite_pane_conflict_detail(con, first)))
+
+  ns$doltlite_pane_abort_merge(con)
+})
+
+test_that("resolving one table leaves the other conflicted", {
+  con <- local_dolt()
+  diverge_two(con)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  dolt_conflicts_resolve(con, "theirs", tables = "t")
+  left <- ns$doltlite_pane_conflicted(con)
+  expect_identical(left$table, "u")
+
+  dolt_conflicts_resolve(con, "ours", tables = "u")
+  expect_identical(nrow(ns$doltlite_pane_conflicted(con)), 0L)
+
+  dolt_commit(con, "Merge branch 'feature'")
+  # Each table kept the side it was resolved with, independently.
+  expect_identical(DBI::dbGetQuery(con, "SELECT v FROM t")$v, "theirs")
+  expect_identical(DBI::dbGetQuery(con, "SELECT w FROM u")$w, "ours")
+})
+
+test_that("conflicted() has a stable shape when there is nothing", {
+  con <- local_dolt()
+  seed_users(con)
+  cf <- ns$doltlite_pane_conflicted(con)
+  expect_s3_class(cf, "data.frame")
+  expect_identical(nrow(cf), 0L)
+  expect_identical(names(cf), c("table", "n"))
 })
 
 test_that("branches table marks the connection's current branch", {

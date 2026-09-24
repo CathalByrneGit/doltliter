@@ -58,6 +58,13 @@ transaction open and shows base, ours and theirs side by side, with buttons
 to keep one side, commit the result, or abort. Aborting rolls back, which
 restores the rows and clears the merge.
 
+Conflicts are handled one table at a time. The conflict columns follow the
+shape of the table they belong to, so several conflicted tables cannot share
+a view; a picker lists them with their counts and the detail follows your
+selection, and `Keep ours`/`Keep theirs` resolve the table you are looking
+at rather than every conflicted one. Tables leave the list as they are
+resolved, so it empties as you work through it.
+
 Two consequences worth knowing. A conflicted merge means an open
 transaction on your connection, so finish or abort it before going back to
 the console; closing the gadget rolls it back rather than stranding it. And

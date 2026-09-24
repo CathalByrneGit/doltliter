@@ -1,0 +1,4 @@
+Name: DoltLite pane
+Description: Status, row-level diffs and history for the open DoltLite connection
+Binding: dolt_pane_addin
+Interactive: true

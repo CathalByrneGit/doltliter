@@ -114,6 +114,14 @@ reference:
   - dolt_clone
   - dolt_creds
 
+- title: Interactive
+  desc: >
+    A Shiny gadget in the spirit of RStudio's Git pane: status, row-level
+    diffs, history and a commit box, for a connection you already have open.
+    Requires the suggested shiny and miniUI packages.
+  contents:
+  - dolt_pane
+
 - title: Introspection and maintenance
   contents:
   - dolt_hashof

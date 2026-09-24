@@ -19,7 +19,7 @@ Encoding: UTF-8
 Depends: R (>= 3.6.0)
 Imports: DBI (>= 1.1.0), methods, bit64
 Suggests: testthat (>= 3.0.0), DBItest (>= 1.7.0), blob, dbplyr, dplyr,
-    knitr, rmarkdown, withr, RSQLite
+    knitr, rmarkdown, withr, RSQLite, shiny, miniUI, rstudioapi
 LinkingTo:
 SystemRequirements: A C++11 compiler, zlib. Either a prebuilt 'libdoltlite'
     (found via pkg-config or DOLTLITE_HOME), a vendored 'DoltLite'
@@ -40,6 +40,7 @@ Collate:
     'dolt-branch.R'
     'dolt-history.R'
     'dolt-remote.R'
+    'dolt-pane.R'
     'dbplyr.R'
     'reexports.R'
 Config/roxygen2/version: 8.1.0

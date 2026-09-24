@@ -59,6 +59,7 @@ test_that("pane status reports a modified table", {
 test_that("the gadget refuses a connection that is not version controlled", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("miniUI")
+  skip_if_not_installed("DT")
 
   con <- DBI::dbConnect(doltliter::Doltlite(), "")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
@@ -70,11 +71,11 @@ test_that("dolt_pane() reports missing Suggests rather than failing obscurely", 
   # Simulate shiny being absent by calling the guard with a stub in place.
   local_mocked_bindings(
     requireNamespace = function(package, ...) {
-      if (package %in% c("shiny", "miniUI")) FALSE else TRUE
+      if (package %in% c("shiny", "miniUI", "DT")) FALSE else TRUE
     },
     .package = "base"
   )
-  expect_error(ns$doltlite_require_shiny(), "shiny and miniUI")
+  expect_error(ns$doltlite_require_shiny(), "shiny, miniUI and DT")
 })
 
 # The reactive logic is the part worth testing: shiny::testServer runs it
@@ -84,6 +85,7 @@ test_that("dolt_pane() reports missing Suggests rather than failing obscurely", 
 test_that("the UI builds for a real connection", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("miniUI")
+  skip_if_not_installed("DT")
   con <- local_dolt()
   expect_s3_class(ns$doltlite_pane_ui(con), "shiny.tag.list")
 })
@@ -149,4 +151,46 @@ test_that("server requires a commit message", {
     expect_match(output$commit_msg, "commit message")
     expect_identical(nrow(status()), 1L)
   })
+})
+
+# The DT table builders are pure, so they are tested directly rather than
+# through the reactives.
+
+test_that("diff table drops commit columns and leads with diff_type", {
+  skip_if_not_installed("DT")
+  con <- local_dolt()
+  seed_users(con)
+  DBI::dbExecute(con, "UPDATE users SET active = 1 WHERE id = 2")
+
+  d <- dolt_table_diff(con, "users", from = "HEAD", to = "WORKING")
+  expect_true(any(grepl("^(to|from)_commit", names(d))))  # present in the raw diff
+
+  tbl <- ns$doltlite_pane_diff_table(d)
+  cols <- names(tbl$x$data)
+  expect_identical(cols[[1]], "diff_type")
+  expect_false(any(grepl("^(to|from)_commit", cols)))
+  expect_true(all(c("to_active", "from_active") %in% cols))
+})
+
+test_that("table builders handle the empty cases", {
+  skip_if_not_installed("DT")
+  empty_diff <- ns$doltlite_pane_diff_table(NULL)
+  expect_s3_class(empty_diff, "datatables")
+  expect_identical(names(empty_diff$x$data), "No differences")
+
+  empty_log <- ns$doltlite_pane_log_table(NULL)
+  expect_s3_class(empty_log, "datatables")
+  expect_identical(names(empty_log$x$data), "No commits yet")
+})
+
+test_that("log table abbreviates the commit hash", {
+  skip_if_not_installed("DT")
+  con <- local_dolt()
+  seed_users(con, commit_message = "seeded")
+
+  tbl <- ns$doltlite_pane_log_table(dolt_log(con))
+  expect_identical(names(tbl$x$data),
+                   c("commit", "date", "committer", "message"))
+  expect_true(all(nchar(tbl$x$data$commit) == 8L))
+  expect_true("seeded" %in% tbl$x$data$message)
 })

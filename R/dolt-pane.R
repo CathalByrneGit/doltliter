@@ -34,17 +34,24 @@ doltlite_find_connection <- function(env = globalenv()) {
   get(hits[[1L]], envir = env)
 }
 
-# Shiny and miniUI are Suggests: this is one optional entry point in a package
-# whose job is to be a DBI backend, and most users never open it.
+# shiny, miniUI and DT are Suggests: this is one optional entry point in a
+# package whose job is to be a DBI backend, and most users never open it.
+DOLTLITE_PANE_PKGS <- c("shiny", "miniUI", "DT")
+
 doltlite_require_shiny <- function() {
-  missing <- c("shiny", "miniUI")[
-    !vapply(c("shiny", "miniUI"), requireNamespace, logical(1), quietly = TRUE)
+  missing <- DOLTLITE_PANE_PKGS[
+    !vapply(DOLTLITE_PANE_PKGS, requireNamespace, logical(1), quietly = TRUE)
   ]
   if (length(missing)) {
+    listed <- if (length(missing) == 1L) {
+      missing
+    } else {
+      paste(paste(missing[-length(missing)], collapse = ", "),
+            "and", missing[[length(missing)]])
+    }
     stop(sprintf(
       "dolt_pane() needs %s. Install with:\n  install.packages(c(%s))",
-      paste(missing, collapse = " and "),
-      paste(sprintf('"%s"', missing), collapse = ", ")
+      listed, paste(sprintf('"%s"', missing), collapse = ", ")
     ), call. = FALSE)
   }
   invisible(TRUE)
@@ -60,6 +67,75 @@ doltlite_pane_status <- function(con) {
                       status = character(), stringsAsFactors = FALSE))
   }
   st
+}
+
+# Shared DT options. A gadget pane is short and narrow, so the table has to
+# scroll horizontally rather than wrap, and the usual DataTables chrome
+# (length menu, "Showing 1 to n of m") costs more room than it earns.
+doltlite_pane_dt <- function(df, page_length = 8L, ...) {
+  DT::datatable(
+    df,
+    rownames = FALSE,
+    class = "compact stripe hover nowrap",
+    options = list(
+      scrollX = TRUE,
+      pageLength = page_length,
+      lengthChange = FALSE,
+      searching = FALSE,
+      info = FALSE,
+      dom = "tp"
+    ),
+    ...
+  )
+}
+
+# A row-level diff arrives as from_/to_ column pairs plus commit metadata.
+# The pairs are the point of the view, so the commit columns are dropped --
+# both endpoints are already fixed by the HEAD -> WORKING heading, and they
+# are wide enough to push the actual values off screen.
+doltlite_pane_diff_table <- function(d) {
+  if (is.null(d) || nrow(d) == 0L) {
+    return(doltlite_pane_dt(data.frame(`No differences` = character(),
+                                       check.names = FALSE)))
+  }
+  drop <- c("to_commit", "from_commit", "to_commit_date", "from_commit_date")
+  keep <- setdiff(names(d), drop)
+  d <- d[, keep, drop = FALSE]
+
+  # Lead with diff_type: it is what you scan for.
+  if ("diff_type" %in% names(d)) {
+    d <- d[, c("diff_type", setdiff(names(d), "diff_type")), drop = FALSE]
+  }
+
+  tbl <- doltlite_pane_dt(d)
+  if ("diff_type" %in% names(d)) {
+    tbl <- DT::formatStyle(
+      tbl, "diff_type",
+      color = DT::styleEqual(
+        c("added", "modified", "removed"),
+        c("#2f855a", "#b7791f", "#c53030")
+      ),
+      fontWeight = "bold"
+    )
+  }
+  tbl
+}
+
+doltlite_pane_log_table <- function(lg) {
+  if (is.null(lg) || nrow(lg) == 0L) {
+    return(doltlite_pane_dt(data.frame(`No commits yet` = character(),
+                                       check.names = FALSE)))
+  }
+  doltlite_pane_dt(
+    data.frame(
+      commit = substr(lg$commit_hash, 1L, 8L),
+      date = as.character(lg$date),
+      committer = lg$committer,
+      message = lg$message,
+      stringsAsFactors = FALSE
+    ),
+    page_length = 12L
+  )
 }
 
 #' A Git-pane-style gadget for a DoltLite connection
@@ -138,32 +214,48 @@ doltlite_pane_ui <- function(con) {
     miniUI::miniTabstripPanel(
       miniUI::miniTabPanel(
         "Changes", icon = shiny::icon("table"),
+        # fluidRow rather than fillRow: a fill container expands to the height
+        # of the panel and pushes whatever follows it out of view, which hid
+        # the commit box entirely.
         miniUI::miniContentPanel(
-          shiny::fillRow(
-            flex = c(1, 2),
-            shiny::div(
-              shiny::strong("Branch: "),
-              shiny::textOutput("branch", inline = TRUE),
-              shiny::actionButton("refresh", "Refresh", class = "btn-sm"),
+          scrollable = TRUE,
+          shiny::fluidRow(
+            shiny::column(
+              4,
+              shiny::div(
+                shiny::strong("Branch: "),
+                shiny::textOutput("branch", inline = TRUE),
+                shiny::actionButton("refresh", "Refresh", class = "btn-sm",
+                                    style = "margin-left: 8px;")
+              ),
               shiny::hr(),
               shiny::uiOutput("table_picker")
             ),
-            shiny::div(
+            shiny::column(
+              8,
               shiny::strong("Diff (HEAD \u2192 WORKING)"),
-              shiny::tableOutput("diff")
+              DT::DTOutput("diff")
             )
           ),
           shiny::hr(),
-          shiny::textInput("msg", NULL, placeholder = "Commit message",
-                           width = "100%"),
-          shiny::actionButton("commit", "Stage everything and commit",
-                              class = "btn-primary"),
+          shiny::fluidRow(
+            shiny::column(
+              8,
+              shiny::textInput("msg", NULL, placeholder = "Commit message",
+                               width = "100%")
+            ),
+            shiny::column(
+              4,
+              shiny::actionButton("commit", "Stage everything and commit",
+                                  class = "btn-primary", width = "100%")
+            )
+          ),
           shiny::textOutput("commit_msg")
         )
       ),
       miniUI::miniTabPanel(
         "History", icon = shiny::icon("clock"),
-        miniUI::miniContentPanel(shiny::tableOutput("log"))
+        miniUI::miniContentPanel(DT::DTOutput("log"))
       )
     )
   )
@@ -197,30 +289,22 @@ doltlite_pane_server <- function(con) {
       )
     })
 
-    output$diff <- shiny::renderTable({
+    output$diff <- DT::renderDT({
       st <- status()
-      shiny::req(nrow(st) > 0L, input$table)
+      # Render the empty state rather than req()-ing out, so a clean working
+      # set says "No differences" instead of leaving the heading over a void.
+      if (nrow(st) == 0L) return(doltlite_pane_diff_table(NULL))
+      shiny::req(input$table)
       d <- tryCatch(
         dolt_table_diff(con, input$table, from = "HEAD", to = "WORKING"),
         error = function(e) data.frame(error = conditionMessage(e))
       )
-      # A wide diff of a big table is not what this view is for; show a window
-      # and let the console have the rest. Indexed rather than utils::head()
-      # so the package needs no dependency on utils for one truncation.
-      if (nrow(d) > 200L) d[seq_len(200L), , drop = FALSE] else d
+      doltlite_pane_diff_table(d)
     })
 
-    output$log <- shiny::renderTable({
+    output$log <- DT::renderDT({
       tick()
-      lg <- tryCatch(dolt_log(con), error = function(e) NULL)
-      if (is.null(lg) || nrow(lg) == 0L) return(NULL)
-      data.frame(
-        commit = substr(lg$commit_hash, 1L, 8L),
-        date = as.character(lg$date),
-        committer = lg$committer,
-        message = lg$message,
-        stringsAsFactors = FALSE
-      )
+      doltlite_pane_log_table(tryCatch(dolt_log(con), error = function(e) NULL))
     })
 
     shiny::observeEvent(input$refresh, refresh())

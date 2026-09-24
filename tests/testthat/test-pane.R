@@ -194,3 +194,141 @@ test_that("log table abbreviates the commit hash", {
   expect_true(all(nchar(tbl$x$data$commit) == 8L))
   expect_true("seeded" %in% tbl$x$data$message)
 })
+
+# ---- merge state machine -------------------------------------------------
+#
+# Each branch of doltlite_pane_do_merge() corresponds to a measured DoltLite
+# behaviour, so each is pinned here.
+
+diverge <- function(con, conflict) {
+  DBI::dbExecute(con, "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+  DBI::dbExecute(con, "INSERT INTO t VALUES (1,'base'),(2,'keep')")
+  dolt_commit(con, "base")
+  dolt_checkout(con, "feature", create = TRUE)
+  DBI::dbExecute(con, "UPDATE t SET v = 'feature-side' WHERE id = 1")
+  dolt_commit(con, "feature edit")
+  dolt_checkout(con, "main")
+  if (conflict) {
+    DBI::dbExecute(con, "UPDATE t SET v = 'main-side' WHERE id = 1")
+    dolt_commit(con, "main edit")
+  }
+  invisible(con)
+}
+
+test_that("a clean merge completes and leaves no transaction open", {
+  con <- local_dolt()
+  diverge(con, conflict = FALSE)
+
+  res <- ns$doltlite_pane_do_merge(con, "feature")
+  expect_identical(res$state, "merged")
+  # A clean merge ends the transaction itself; committing again would raise.
+  expect_false(ns$doltlite_in_transaction(con))
+  expect_identical(
+    DBI::dbGetQuery(con, "SELECT v FROM t WHERE id = 1")$v, "feature-side")
+})
+
+test_that("a conflicting merge stays open with conflicts to resolve", {
+  con <- local_dolt()
+  diverge(con, conflict = TRUE)
+
+  res <- ns$doltlite_pane_do_merge(con, "feature")
+  expect_identical(res$state, "conflicted")
+  expect_true(ns$doltlite_in_transaction(con))
+  expect_identical(nrow(dolt_conflicts(con)), 1L)
+
+  ns$doltlite_pane_abort_merge(con)
+})
+
+test_that("aborting a conflicted merge restores the pre-merge state", {
+  con <- local_dolt()
+  diverge(con, conflict = TRUE)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  ns$doltlite_pane_abort_merge(con)
+  expect_false(ns$doltlite_in_transaction(con))
+  expect_identical(nrow(dolt_conflicts(con)), 0L)
+  expect_identical(
+    DBI::dbGetQuery(con, "SELECT v FROM t WHERE id = 1")$v, "main-side")
+  expect_identical(as.integer(dolt_merge_status(con)$is_merging), 0L)
+})
+
+test_that("resolving and committing finishes the merge", {
+  con <- local_dolt()
+  diverge(con, conflict = TRUE)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  dolt_conflicts_resolve(con, "theirs")
+  expect_identical(nrow(dolt_conflicts(con)), 0L)
+  dolt_commit(con, "Merge branch 'feature'")
+
+  expect_false(ns$doltlite_in_transaction(con))
+  expect_identical(
+    DBI::dbGetQuery(con, "SELECT v FROM t WHERE id = 1")$v, "feature-side")
+  expect_identical(dolt_log(con)$message[[1]], "Merge branch 'feature'")
+})
+
+test_that("a dirty working set blocks the merge without opening a transaction", {
+  con <- local_dolt()
+  diverge(con, conflict = FALSE)
+  DBI::dbExecute(con, "INSERT INTO t VALUES (9, 'uncommitted')")
+
+  res <- ns$doltlite_pane_do_merge(con, "feature")
+  expect_identical(res$state, "blocked")
+  expect_match(res$message, "uncommitted changes")
+  # The guard must not leave a transaction behind: DoltLite's own refusal does.
+  expect_false(ns$doltlite_in_transaction(con))
+})
+
+test_that("an already-open transaction blocks the merge", {
+  con <- local_dolt()
+  diverge(con, conflict = FALSE)
+
+  DBI::dbBegin(con)
+  res <- ns$doltlite_pane_do_merge(con, "feature")
+  expect_identical(res$state, "blocked")
+  expect_match(res$message, "transaction is already open")
+  expect_true(ns$doltlite_in_transaction(con))
+  DBI::dbRollback(con)
+})
+
+test_that("merging a branch that does not exist fails cleanly", {
+  con <- local_dolt()
+  diverge(con, conflict = FALSE)
+
+  res <- ns$doltlite_pane_do_merge(con, "no-such-branch")
+  expect_identical(res$state, "failed")
+  # The error path must unwind the transaction it opened.
+  expect_false(ns$doltlite_in_transaction(con))
+})
+
+test_that("conflict detail shows rows for one table and the summary for many", {
+  skip_if_not_installed("DT")
+  con <- local_dolt()
+  diverge(con, conflict = TRUE)
+  ns$doltlite_pane_do_merge(con, "feature")
+
+  detail <- ns$doltlite_pane_conflict_detail(con)
+  expect_true(all(c("base_v", "our_v", "their_v") %in% names(detail)))
+
+  tbl <- ns$doltlite_pane_conflicts_table(detail)
+  expect_s3_class(tbl, "datatables")
+  # Internal join keys are not worth the width.
+  expect_false(any(c("from_root_ish", "dolt_conflict_id") %in%
+                     names(tbl$x$data)))
+
+  ns$doltlite_pane_abort_merge(con)
+  expect_null(ns$doltlite_pane_conflict_detail(con))
+})
+
+test_that("branches table marks the connection's current branch", {
+  skip_if_not_installed("DT")
+  con <- local_dolt()
+  seed_users(con)
+  dolt_checkout(con, "feature", create = TRUE)
+
+  tbl <- ns$doltlite_pane_branches_table(dolt_branches(con),
+                                         active_branch(con))
+  marked <- grep("\\*$", tbl$x$data$branch, value = TRUE)
+  expect_length(marked, 1L)
+  expect_match(marked, "^feature")
+})

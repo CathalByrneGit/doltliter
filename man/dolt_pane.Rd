@@ -46,6 +46,27 @@ the console still believes is running. Commit or roll back first.
 change in the working set, not only the table you are looking at.
 }
 
+\section{Merging}{
+
+The Branches tab lists the branches, creates and switches between them, and
+merges one into the branch this connection is on.
+
+Merges run inside a transaction, because they have to: DoltLite rolls a
+conflicting merge back whole in autocommit mode, so there would be nothing
+left to inspect or resolve. When a merge conflicts, the gadget keeps that
+transaction open and shows base, ours and theirs side by side, with buttons
+to keep one side, commit the result, or abort. Aborting rolls back, which
+restores the rows and clears the merge.
+
+Two consequences worth knowing. A conflicted merge means an open
+transaction on your connection, so finish or abort it before going back to
+the console; closing the gadget rolls it back rather than stranding it. And
+a merge is refused while the working set is dirty, since DoltLite requires
+a clean one -- commit on the Changes tab first.
+
+Remotes are not wrapped here; use [dolt_push()] and [dolt_pull()].
+}
+
 \examples{
 \dontrun{
 con <- DBI::dbConnect(doltliter::Doltlite(), "mydata.db")
@@ -53,5 +74,6 @@ dolt_pane(con)
 }
 }
 \seealso{
-[dolt_status()], [dolt_table_diff()], [dolt_log()]
+[dolt_status()], [dolt_table_diff()], [dolt_log()],
+  [dolt_merge()], [dolt_conflicts()]
 }

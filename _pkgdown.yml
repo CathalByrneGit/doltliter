@@ -26,6 +26,8 @@ navbar:
         href: articles/time-travel.html
       - text: Using dplyr
         href: articles/dplyr.html
+      - text: The pane
+        href: articles/pane.html
       - text: "-------"
       - text: Installation and linking strategies
         href: articles/installation.html
@@ -116,9 +118,10 @@ reference:
 
 - title: Interactive
   desc: >
-    A Shiny gadget in the spirit of RStudio's Git pane: status, row-level
-    diffs, history and a commit box, for a connection you already have open.
-    Requires the suggested shiny and miniUI packages.
+    A Shiny gadget and RStudio addin in the spirit of RStudio's Git pane, over
+    a connection you already have open: the working set and its row-level
+    diffs, the history, and branch operations including merging with
+    conflict resolution. Requires the suggested shiny, miniUI and DT packages.
   contents:
   - dolt_pane
 
@@ -156,6 +159,7 @@ articles:
   - version-control
   - time-travel
   - dplyr
+  - articles/pane
   - installation
 
 - title: Design notes

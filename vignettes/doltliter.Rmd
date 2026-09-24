@@ -206,8 +206,9 @@ dolt_log(con)[, c("committer", "message")]
 table as it was at a revision:
 
 ```{r}
-first <- rev(dolt_log(con)$commit_hash)[1]
-dolt_at(con, "users", first)
+lg <- dolt_log(con)
+loaded <- lg$commit_hash[lg$message == "Initial load"]
+dolt_at(con, "users", loaded)
 ```
 
 `dolt_blame()` attributes each live row to the commit that last set it. It

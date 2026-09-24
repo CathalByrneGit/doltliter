@@ -13,6 +13,8 @@
   blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.md):
 - [Using
   dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.md):
+- [The
+  pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.md):
 - [Installation and linking
   strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.md):
 

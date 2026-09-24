@@ -106,6 +106,28 @@ All arguments are passed as **bound parameters**, never interpolated
 into SQL, so a commit message containing quotes or semicolons is just a
 message.
 
+## A pane, in the spirit of RStudio’s Git pane
+
+[`dolt_pane()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+opens a Shiny gadget — also an RStudio addin — over a connection you
+already have open: the working set and its row-level diffs, the history,
+and branch operations including merging with conflict resolution.
+
+``` r
+
+con <- DBI::dbConnect(doltliter::Doltlite(), "mydata.db")
+dolt_pane(con)
+```
+
+It runs in your R session on your connection rather than as a background
+process, which is forced by the engine rather than a shortcut: branches
+are per connection, so a pane holding its own connection would report
+its own branch and could commit onto one you are not on. [The
+pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html) has
+the screenshots and the reasoning.
+
+Needs the suggested `shiny`, `miniUI` and `DT`.
+
 ## Documentation
 
 - [Version-controlled data with
@@ -117,6 +139,8 @@ message.
   blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html)
 - [Using
   dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html)
+- [The
+  pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html)
 - [Installation and linking
   strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html)
 
@@ -313,6 +337,18 @@ Push, pull, fetch and clone over the filesystem or HTTP.
   [`dolt_creds_new()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_creds.md)
   : Credentials for authenticated remotes
 
+## Interactive
+
+A Shiny gadget and RStudio addin in the spirit of RStudio’s Git pane,
+over a connection you already have open: the working set and its
+row-level diffs, the history, and branch operations including merging
+with conflict resolution. Requires the suggested shiny, miniUI and DT
+packages.
+
+- [`dolt_pane()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+  [`dolt_pane_addin()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+  : A Git-pane-style gadget for a DoltLite connection
+
 ## Introspection and maintenance
 
 - [`dolt_hashof()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_hashof.md)
@@ -369,6 +405,8 @@ into SQL.
   blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.md):
 - [Using
   dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.md):
+- [The
+  pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.md):
 - [Installation and linking
   strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.md):
 

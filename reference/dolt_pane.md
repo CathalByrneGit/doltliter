@@ -1,0 +1,97 @@
+# A Git-pane-style gadget for a DoltLite connection
+
+Opens a Shiny gadget showing what a version-control pane should show:
+the tables with uncommitted changes, the row-level diff for whichever
+you select, the commit history, and a commit box.
+
+## Usage
+
+``` r
+dolt_pane(con = NULL, env = parent.frame(), viewer = NULL)
+
+dolt_pane_addin()
+```
+
+## Arguments
+
+- con:
+
+  a \`DoltliteConnection\`. If omitted, and exactly one open connection
+  exists in \`env\`, that one is used; ambiguity is an error.
+
+- env:
+
+  environment to search when \`con\` is omitted.
+
+- viewer:
+
+  a Shiny viewer, passed to \[shiny::runGadget()\]. Defaults to
+  RStudio's pane viewer when available.
+
+## Value
+
+Invisibly, the connection it acted on.
+
+## Details
+
+It runs in your R session, on the connection you give it. That is a
+deliberate constraint rather than a simplification: branches in DoltLite
+are per connection, so a pane holding its own connection would display
+its own branch rather than yours, and committing from it could land your
+work on a branch you are not on. It would also see nothing inside an
+open transaction, and could not write while you held one. Running
+in-process avoids all three, at the cost of blocking the console while
+the gadget is open.
+
+## Committing
+
+The Commit button refuses while a SQL transaction is open. This is not
+caution for its own sake: \`dolt_commit()\` ends the enclosing
+transaction, so committing from the gadget mid-\`dbBegin()\` would
+silently end a transaction the console still believes is running. Commit
+or roll back first.
+
+\`Stage everything and commit\` runs \`dolt_add("-A")\`, which sweeps up
+every change in the working set, not only the table you are looking at.
+
+## Merging
+
+The Branches tab lists the branches, creates and switches between them,
+and merges one into the branch this connection is on.
+
+Merges run inside a transaction, because they have to: DoltLite rolls a
+conflicting merge back whole in autocommit mode, so there would be
+nothing left to inspect or resolve. When a merge conflicts, the gadget
+keeps that transaction open and shows base, ours and theirs side by
+side, with buttons to keep one side, commit the result, or abort.
+Aborting rolls back, which restores the rows and clears the merge.
+
+Conflicts are handled one table at a time. The conflict columns follow
+the shape of the table they belong to, so several conflicted tables
+cannot share a view; a picker lists them with their counts and the
+detail follows your selection, and \`Keep ours\`/\`Keep theirs\` resolve
+the table you are looking at rather than every conflicted one. Tables
+leave the list as they are resolved, so it empties as you work through
+it.
+
+Two consequences worth knowing. A conflicted merge means an open
+transaction on your connection, so finish or abort it before going back
+to the console; closing the gadget rolls it back rather than stranding
+it. And a merge is refused while the working set is dirty, since
+DoltLite requires a clean one – commit on the Changes tab first.
+
+Remotes are not wrapped here; use \[dolt_push()\] and \[dolt_pull()\].
+
+## See also
+
+\[dolt_status()\], \[dolt_table_diff()\], \[dolt_log()\],
+\[dolt_merge()\], \[dolt_conflicts()\]
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+con <- DBI::dbConnect(doltliter::Doltlite(), "mydata.db")
+dolt_pane(con)
+} # }
+```

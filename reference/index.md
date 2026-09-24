@@ -176,6 +176,18 @@ Push, pull, fetch and clone over the filesystem or HTTP.
   [`dolt_creds_new()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_creds.md)
   : Credentials for authenticated remotes
 
+## Interactive
+
+A Shiny gadget and RStudio addin in the spirit of RStudio’s Git pane,
+over a connection you already have open: the working set and its
+row-level diffs, the history, and branch operations including merging
+with conflict resolution. Requires the suggested shiny, miniUI and DT
+packages.
+
+- [`dolt_pane()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+  [`dolt_pane_addin()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+  : A Git-pane-style gadget for a DoltLite connection
+
 ## Introspection and maintenance
 
 - [`dolt_hashof()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_hashof.md)

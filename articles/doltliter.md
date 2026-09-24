@@ -18,7 +18,7 @@ path <- tempfile(fileext = ".db")
 con <- DBI::dbConnect(Doltlite(), path)
 con
 #> <DoltliteConnection>
-#>   Database: /tmp/RtmpSHMoFG/file20135941445a.db
+#>   Database: /tmp/RtmpR3iD2z/file20142aaa59e2.db
 #>   Branch:   main
 ```
 
@@ -177,7 +177,7 @@ DBI::dbExecute(con, "UPDATE users SET name = 'ADA' WHERE id = 1")
 dolt_diff(con, "users")[, c("commit_hash", "table_name", "data_change")]
 #>                                commit_hash table_name data_change
 #> 1                                  WORKING      users           1
-#> 2 82fe1de6ddd4928d3540796761e06d5ca385de0f      users           1
+#> 2 759e2c8ae98465d507a519658be28499427ab09a      users           1
 dolt_reset(con, "hard")
 ```
 
@@ -196,7 +196,7 @@ A clean merge just works:
 ``` r
 
 dolt_merge(con, "experiment")
-#> [1] "10aac0789ed830f5c007d414af74f3f64796968e"
+#> [1] "5db1ea4392e18b9b840b5c1751b0d1142b799cf2"
 DBI::dbGetQuery(con, "SELECT id, name, active FROM users ORDER BY id")
 #>   id name active
 #> 1  1  ada      1
@@ -277,10 +277,13 @@ reads a table as it was at a revision:
 
 ``` r
 
-first <- rev(dolt_log(con)$commit_hash)[1]
-dolt_at(con, "users", first)
-#> [1] id     name   active
-#> <0 rows> (or 0-length row.names)
+lg <- dolt_log(con)
+loaded <- lg$commit_hash[lg$message == "Initial load"]
+dolt_at(con, "users", loaded)
+#>   id name active
+#> 1  1  ada      1
+#> 2  2  bob      0
+#> 3  3 cleo      1
 ```
 
 [`dolt_blame()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_blame.md)
@@ -347,8 +350,8 @@ DBI::dbReadTable(clone, "users")
 #> 2  2  bob      1
 #> 3  3 cleo      1
 dolt_remotes(clone)[, c("name", "url")]
-#>     name                                        url
-#> 1 origin file:///tmp/RtmpSHMoFG/file20132bf4045c.db
+#>     name                                       url
+#> 1 origin file:///tmp/RtmpR3iD2z/file20145d2341e.db
 DBI::dbDisconnect(clone)
 ```
 

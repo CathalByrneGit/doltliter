@@ -106,6 +106,28 @@ All arguments are passed as **bound parameters**, never interpolated
 into SQL, so a commit message containing quotes or semicolons is just a
 message.
 
+## A pane, in the spirit of RStudio’s Git pane
+
+[`dolt_pane()`](https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.md)
+opens a Shiny gadget — also an RStudio addin — over a connection you
+already have open: the working set and its row-level diffs, the history,
+and branch operations including merging with conflict resolution.
+
+``` r
+
+con <- DBI::dbConnect(doltliter::Doltlite(), "mydata.db")
+dolt_pane(con)
+```
+
+It runs in your R session on your connection rather than as a background
+process, which is forced by the engine rather than a shortcut: branches
+are per connection, so a pane holding its own connection would report
+its own branch and could commit onto one you are not on. [The
+pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html) has
+the screenshots and the reasoning.
+
+Needs the suggested `shiny`, `miniUI` and `DT`.
+
 ## Documentation
 
 - [Version-controlled data with
@@ -117,6 +139,8 @@ message.
   blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html)
 - [Using
   dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html)
+- [The
+  pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html)
 - [Installation and linking
   strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html)
 

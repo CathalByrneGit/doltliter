@@ -8,6 +8,7 @@
 <url><loc>https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/articles/index.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/articles/installation.html</loc></url>
+<url><loc>https://cathalbyrnegit.github.io/doltliter/articles/pane.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/articles/version-control.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/authors.html</loc></url>
@@ -42,6 +43,7 @@
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_merge.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_merge_base.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_merge_status.html</loc></url>
+<url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_pane.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_patch.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_pull.html</loc></url>
 <url><loc>https://cathalbyrnegit.github.io/doltliter/reference/dolt_push.html</loc></url>

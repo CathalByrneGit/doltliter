@@ -40,6 +40,7 @@
 <li><a class="dropdown-item" href="articles/version-control.html">Branching, merging and conflicts</a></li>
     <li><a class="dropdown-item" href="articles/time-travel.html">Time travel: history, diffs and blame</a></li>
     <li><a class="dropdown-item" href="articles/dplyr.html">Using dplyr</a></li>
+    <li><a class="dropdown-item" href="articles/pane.html">The pane</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="articles/installation.html">Installation and linking strategies</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -188,6 +189,16 @@
 <p>All arguments are passed as <strong>bound parameters</strong>, never interpolated into SQL, so a commit message containing quotes or semicolons is just a message.</p>
 </div>
 <div class="section level2">
+<h2 id="a-pane-in-the-spirit-of-rstudios-git-pane">A pane, in the spirit of RStudio’s Git pane<a class="anchor" aria-label="anchor" href="#a-pane-in-the-spirit-of-rstudios-git-pane"></a>
+</h2>
+<p><code><a href="reference/dolt_pane.html">dolt_pane()</a></code> opens a Shiny gadget — also an RStudio addin — over a connection you already have open: the working set and its row-level diffs, the history, and branch operations including merging with conflict resolution.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">doltliter</span><span class="fu">::</span><span class="fu"><a href="reference/Doltlite.html">Doltlite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"mydata.db"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/dolt_pane.html">dolt_pane</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></code></pre></div>
+<p>It runs in your R session on your connection rather than as a background process, which is forced by the engine rather than a shortcut: branches are per connection, so a pane holding its own connection would report its own branch and could commit onto one you are not on. <a href="https://cathalbyrnegit.github.io/doltliter/articles/pane.html">The pane</a> has the screenshots and the reasoning.</p>
+<p>Needs the suggested <code>shiny</code>, <code>miniUI</code> and <code>DT</code>.</p>
+</div>
+<div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
 <ul>
@@ -196,6 +207,7 @@
 <li><a href="https://cathalbyrnegit.github.io/doltliter/articles/version-control.html">Branching, merging and conflicts</a></li>
 <li><a href="https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html">Time travel: history, diffs and blame</a></li>
 <li><a href="https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html">Using dplyr</a></li>
+<li><a href="https://cathalbyrnegit.github.io/doltliter/articles/pane.html">The pane</a></li>
 <li><a href="https://cathalbyrnegit.github.io/doltliter/articles/installation.html">Installation and linking strategies</a></li>
 </ul>
 <p>Design notes: <a href="https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html">DBI conformance</a> (the full <code>DBItest</code> suite runs in the test suite and passes, apart from two naming conventions that follow from the package’s own name) and <a href="https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html">Why a native binding, and how it links</a> (release artifacts, platform coverage, and why a CRAN submission would vendor the amalgamation).</p>

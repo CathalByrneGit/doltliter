@@ -36,6 +36,7 @@
 <li><a class="dropdown-item" href="../articles/version-control.html">Branching, merging and conflicts</a></li>
     <li><a class="dropdown-item" href="../articles/time-travel.html">Time travel: history, diffs and blame</a></li>
     <li><a class="dropdown-item" href="../articles/dplyr.html">Using dplyr</a></li>
+    <li><a class="dropdown-item" href="../articles/pane.html">The pane</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../articles/installation.html">Installation and linking strategies</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -85,7 +86,7 @@ commit, branch, modify, diff, merge, and resolve a conflict.</p>
 <span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu"><a href="../reference/Doltlite.html">Doltlite</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">path</span><span class="op">)</span></span>
 <span><span class="va">con</span></span>
 <span><span class="co">#&gt; &lt;DoltliteConnection&gt;</span></span>
-<span><span class="co">#&gt;   Database: /tmp/RtmpSHMoFG/file20135941445a.db</span></span>
+<span><span class="co">#&gt;   Database: /tmp/RtmpR3iD2z/file20142aaa59e2.db</span></span>
 <span><span class="co">#&gt;   Branch:   main</span></span></code></pre></div>
 <p>One caveat worth stating up front: pass a real path, not
 <code>""</code>. SQLite’s anonymous temporary database is created in the
@@ -205,7 +206,7 @@ uncommitted changes:</p>
 <span><span class="fu"><a href="../reference/dolt_diff.html">dolt_diff</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"users"</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"commit_hash"</span>, <span class="st">"table_name"</span>, <span class="st">"data_change"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                                commit_hash table_name data_change</span></span>
 <span><span class="co">#&gt; 1                                  WORKING      users           1</span></span>
-<span><span class="co">#&gt; 2 82fe1de6ddd4928d3540796761e06d5ca385de0f      users           1</span></span>
+<span><span class="co">#&gt; 2 759e2c8ae98465d507a519658be28499427ab09a      users           1</span></span>
 <span><span class="fu"><a href="../reference/dolt_reset.html">dolt_reset</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"hard"</span><span class="op">)</span></span></code></pre></div>
 <p>For summaries rather than rows, there are
 <code><a href="../reference/dolt_diff_stat.html">dolt_diff_stat()</a></code>, <code><a href="../reference/dolt_diff_stat.html">dolt_diff_summary()</a></code> and
@@ -218,7 +219,7 @@ uncommitted changes:</p>
 <p>A clean merge just works:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/dolt_merge.html">dolt_merge</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"experiment"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "10aac0789ed830f5c007d414af74f3f64796968e"</span></span>
+<span><span class="co">#&gt; [1] "5db1ea4392e18b9b840b5c1751b0d1142b799cf2"</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT id, name, active FROM users ORDER BY id"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   id name active</span></span>
 <span><span class="co">#&gt; 1  1  ada      1</span></span>
@@ -281,10 +282,13 @@ nothing left to <code>dbCommit()</code>.</p>
 <p><code><a href="../reference/dolt_history.html">dolt_history()</a></code> gives every version of every row, and
 <code><a href="../reference/dolt_at.html">dolt_at()</a></code> reads a table as it was at a revision:</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">first</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rev.html" class="external-link">rev</a></span><span class="op">(</span><span class="fu"><a href="../reference/dolt_log.html">dolt_log</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span><span class="op">$</span><span class="va">commit_hash</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
-<span><span class="fu"><a href="../reference/dolt_at.html">dolt_at</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"users"</span>, <span class="va">first</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] id     name   active</span></span>
-<span><span class="co">#&gt; &lt;0 rows&gt; (or 0-length row.names)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">lg</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dolt_log.html">dolt_log</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="va">loaded</span> <span class="op">&lt;-</span> <span class="va">lg</span><span class="op">$</span><span class="va">commit_hash</span><span class="op">[</span><span class="va">lg</span><span class="op">$</span><span class="va">message</span> <span class="op">==</span> <span class="st">"Initial load"</span><span class="op">]</span></span>
+<span><span class="fu"><a href="../reference/dolt_at.html">dolt_at</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"users"</span>, <span class="va">loaded</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   id name active</span></span>
+<span><span class="co">#&gt; 1  1  ada      1</span></span>
+<span><span class="co">#&gt; 2  2  bob      0</span></span>
+<span><span class="co">#&gt; 3  3 cleo      1</span></span></code></pre></div>
 <p><code><a href="../reference/dolt_blame.html">dolt_blame()</a></code> attributes each live row to the commit that
 last set it. It needs a primary key — there is no stable row identity
 without one:</p>
@@ -343,8 +347,8 @@ the filesystem or HTTP:</p>
 <span><span class="co">#&gt; 2  2  bob      1</span></span>
 <span><span class="co">#&gt; 3  3 cleo      1</span></span>
 <span><span class="fu"><a href="../reference/dolt_remote.html">dolt_remotes</a></span><span class="op">(</span><span class="va">clone</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"name"</span>, <span class="st">"url"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;     name                                        url</span></span>
-<span><span class="co">#&gt; 1 origin file:///tmp/RtmpSHMoFG/file20132bf4045c.db</span></span>
+<span><span class="co">#&gt;     name                                       url</span></span>
+<span><span class="co">#&gt; 1 origin file:///tmp/RtmpR3iD2z/file20145d2341e.db</span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">clone</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">

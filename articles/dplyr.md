@@ -32,7 +32,7 @@ dolt_commit(con, "Load measurements")
 tb <- tbl(con, "measurements")
 tb
 #> # A query:  ?? x 4
-#> # Database: doltlite 3.54.0 [/tmp/RtmpkmI84A/file204d403ee2ef.db@main]
+#> # Database: doltlite 3.54.0 [/tmp/RtmpybMffa/file20cc752c63a1.db@main]
 #>      id site  season value
 #>   <int> <chr> <chr>  <dbl>
 #> 1     1 north spring  12.1

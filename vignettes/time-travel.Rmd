@@ -106,7 +106,8 @@ dolt_reset(con, "hard")
 branch switching, just a query against a historical snapshot:
 
 ```{r}
-first <- rev(dolt_log(con)$commit_hash)[2]   # the first real commit
+lg <- dolt_log(con)
+first <- lg$commit_hash[lg$message == "First calibration run"]
 
 dolt_at(con, "readings", first)
 DBI::dbReadTable(con, "readings")

@@ -2,7 +2,7 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/CathalByrneGit/doltliter/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/R-CMD-check.yaml)
-[![pkgdown](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/pkgdown.yaml)
+[![Site](https://github.com/CathalByrneGit/doltliter/actions/workflows/github-pages.yml/badge.svg)](https://github.com/CathalByrneGit/doltliter/actions/workflows/github-pages.yml)
 <!-- badges: end -->
 
 📖 **Documentation: <https://cathalbyrnegit.github.io/doltliter/>**
@@ -114,7 +114,7 @@ It runs in your R session on your connection rather than as a background
 process, which is forced by the engine rather than a shortcut: branches are
 per connection, so a pane holding its own connection would report its own
 branch and could commit onto one you are not on. [The
-pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html) has the
+pane](https://cathalbyrnegit.github.io/doltliter/pane.html) has the
 screenshots and the reasoning.
 
 Needs the suggested `shiny`, `miniUI` and `DT`.
@@ -126,14 +126,14 @@ Needs the suggested `shiny`, `miniUI` and `DT`.
 * [Branching, merging and conflicts](https://cathalbyrnegit.github.io/doltliter/articles/version-control.html)
 * [Time travel: history, diffs and blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html)
 * [Using dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html)
-* [The pane](https://cathalbyrnegit.github.io/doltliter/articles/pane.html)
+* [The pane](https://cathalbyrnegit.github.io/doltliter/pane.html)
 * [Installation and linking strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html)
 
 Design notes:
-[DBI conformance](https://cathalbyrnegit.github.io/doltliter/articles/dbi-compliance.html)
+[DBI conformance](https://cathalbyrnegit.github.io/doltliter/dbi-compliance.html)
 (the full `DBItest` suite runs in the test suite and passes, apart from two
 naming conventions that follow from the package's own name) and
-[Why a native binding, and how it links](https://cathalbyrnegit.github.io/doltliter/articles/feasibility-notes.html)
+[Why a native binding, and how it links](https://cathalbyrnegit.github.io/doltliter/feasibility-notes.html)
 (release artifacts, platform coverage, and why a CRAN submission would vendor
 the amalgamation).
 

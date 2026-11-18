@@ -1,11 +1,6 @@
 ---
 title: "Why a native binding, and how it links"
-output: rmarkdown::html_document
 ---
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-```
 
 Investigation date: 2026-09-03.
 Upstream studied: `dolthub/doltlite` @ `master` (shallow clone), release **v0.50.3**
@@ -235,6 +230,9 @@ recorded here because each one is a trap for the next person:
 - **`dolt_commit()` ends the enclosing SQL transaction.** Any R-side flag
   tracking transaction state goes stale the moment it is called, so the backend
   reads `sqlite3_get_autocommit()` instead.
+  *Changed in DoltLite 0.51 (noted 2026-11):* the transaction is now left
+  open. `doltliter` reopens one the engine closed, so both versions behave the
+  0.51 way; reading SQLite's own state remained the right design.
 - **A conflicting merge in autocommit mode is rolled back whole**, and DoltLite
   reports the conflict as a SQL *error* rather than a return value — in both
   autocommit and transaction modes. `dolt_merge()` therefore distinguishes the

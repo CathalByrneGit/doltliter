@@ -1,10 +1,7 @@
 ^doltliter\.Rproj$
 ^\.Rproj\.user$
 ^\.github$
-^docs$
 ^tools/scratch$
 ^\.claude$
 ^LICENSE\.md$
-^_pkgdown\.yml$
-^pkgdown$
-^vignettes/articles$
+^site$

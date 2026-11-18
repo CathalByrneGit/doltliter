@@ -1,17 +1,16 @@
 ---
 title: "Using dplyr"
-output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Using dplyr}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{litedown::vignette}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+litedown::reactor(collapse = TRUE, comment = "#>")
 has_dplyr <- requireNamespace("dplyr", quietly = TRUE) &&
   requireNamespace("dbplyr", quietly = TRUE)
-knitr::opts_chunk$set(eval = has_dplyr)
+litedown::reactor(eval = has_dplyr)
 ```
 
 `dplyr::tbl()` works over a `doltliter` connection with no extra setup.

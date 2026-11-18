@@ -259,8 +259,10 @@ test_that("resolving and committing finishes the merge", {
 
   dolt_conflicts_resolve(con, "theirs")
   expect_identical(nrow(dolt_conflicts(con)), 0L)
-  dolt_commit(con, "Merge branch 'feature'")
+  ns$doltlite_pane_commit_merge(con, "feature")
 
+  # Committing only the Dolt side would leave the merge's transaction open,
+  # holding the write lock; the helper must finish it.
   expect_false(ns$doltlite_in_transaction(con))
   expect_identical(
     DBI::dbGetQuery(con, "SELECT v FROM t WHERE id = 1")$v, "feature-side")

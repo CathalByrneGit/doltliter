@@ -35,12 +35,15 @@ does. Nothing is recorded in the history until you call it.
 A useful mental model: `dbCommit()` is "save the file", `dolt_commit()` is
 "commit to the repository".
 
-One asymmetry is worth remembering: [dolt_commit()] **ends the enclosing
-SQL transaction** as a side effect. After calling it inside a
-`dbBegin()`/`dbCommit()` block there is no transaction left to commit, and a
-further `dbCommit()` will report that none is active. This backend asks
-SQLite whether a transaction is open rather than tracking it separately, so
-[DBI::dbBegin()] and friends stay accurate either way.
+Calling [dolt_commit()] inside a `dbBegin()` block records the commit and
+**leaves the transaction open**: you began it, so you finish it with
+`dbCommit()` or `dbRollback()`. The Dolt commit is durable as soon as
+`dolt_commit()` returns, so a rollback at that point does not undo it.
+
+DoltLite 0.50 behaved differently, ending the enclosing transaction as a
+side effect of `dolt_commit()` and of a clean merge; 0.51 leaves it open.
+This backend reopens a transaction the engine closed, so the behaviour above
+holds on every version.
 
 Note that DoltLite permits one durable writer at a time. A second
 connection that begins a write transaction gets `SQLITE_BUSY` until the

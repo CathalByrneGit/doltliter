@@ -120,9 +120,14 @@ main <- function(cli) {
               run_cli(cli_db, "SELECT dolt_hashof_db();"),
               dolt_hashof_db(con))
 
+  # DoltLite 0.51 stamps the root commit "Initialize data repository (<id>)"
+  # with an id that is random per database, so two databases built identically
+  # never agree on it -- like the commit hashes above, and for the same kind of
+  # reason. Strip that suffix; every message we wrote is still compared exactly.
+  strip_root_id <- function(m) sub("^(Initialize data repository) \\([0-9a-f]+\\)$", "\\1", m)
   expect_same("dolt_log messages",
-              run_cli(cli_db, "SELECT message FROM dolt_log;"),
-              dolt_log(con)$message)
+              strip_root_id(run_cli(cli_db, "SELECT message FROM dolt_log;")),
+              strip_root_id(dolt_log(con)$message))
 
   expect_same("dolt_log committers",
               run_cli(cli_db, "SELECT committer FROM dolt_log;"),

@@ -1,0 +1,22 @@
+# Replaces litedown's template _litedown.yml entirely, so it has to repeat the
+# template's own settings (the footer include and numbered sections) as well as
+# the additions below.
+site:
+  # No webR playground. doltliter links a compiled engine and is not published
+  # as a WASM binary, so the in-browser editor could not load the package; the
+  # template ships one by default, and this keeps it out of the build.
+  exclude: ["code.Rmd", "playground"]
+  # Without this the nav titles are derived from file names ("Dbi Compliance").
+  nav:
+    manual: Reference
+    articles: Articles
+    pane: The pane
+    dbi-compliance: DBI conformance
+    feasibility-notes: Native binding
+
+output:
+  html:
+    meta:
+      include_after: "_footer.md"
+    options:
+      number_sections: true

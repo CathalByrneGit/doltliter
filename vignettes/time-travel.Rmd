@@ -1,14 +1,13 @@
 ---
 title: "Time travel: history, diffs and blame"
-output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Time travel: history, diffs and blame}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{litedown::vignette}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+litedown::reactor(collapse = TRUE, comment = "#>")
 ```
 
 Committing data is only half the point. The other half is being able to ask
@@ -85,7 +84,7 @@ dolt_table_diff(con, "readings", from = "HEAD~2", to = "HEAD")[
 A range string works too, which is handy when comparing branches.
 Two dots are the two endpoints; three dots is merge-base to the right endpoint:
 
-```{r, eval = FALSE}
+```{r, eval = FALSE, purl = FALSE}
 dolt_table_diff(con, "readings", range = "main..feature")
 dolt_table_diff(con, "readings", range = "main...feature")
 ```

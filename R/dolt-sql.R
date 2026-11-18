@@ -92,7 +92,15 @@ dolt_scalar <- function(con, fn, ...) {
   dolt_check_name(fn, "function name")
   args <- dolt_args(...)
   sql <- paste0("SELECT ", fn, "(", dolt_placeholders(length(args)), ")")
+  was_open <- doltlite_in_transaction(con)
   out <- dbGetQuery(con, sql, params = if (length(args)) as.list(args) else NULL)
+  # DoltLite 0.50 ended an enclosing SQL transaction on dolt_commit(), a clean
+  # merge and the like; 0.51 leaves it open. Reopen it here so that a
+  # transaction the caller began is the caller's to finish -- with dbCommit()
+  # or dbRollback() -- on every engine version. That is the 0.51 behaviour and
+  # the DBI one. The work itself is already durable either way: rolling back
+  # the transaction 0.51 leaves open does not undo the Dolt commit.
+  if (was_open && !doltlite_in_transaction(con)) dbBegin(con)
   if (nrow(out) == 0L || ncol(out) == 0L) return(invisible(NULL))
   out[[1L]][[1L]]
 }

@@ -166,8 +166,10 @@ doltlite_pane_conflicts_table <- function(cf) {
 #   * A conflicting merge in autocommit is rolled back whole, so there is
 #     nothing left to resolve. The merge therefore has to run inside a
 #     transaction for conflicts to be inspectable at all.
-#   * A *clean* merge ends the transaction itself, so committing afterwards
-#     unconditionally would raise "no transaction is open".
+#   * Whether a *clean* merge ends the transaction depended on the engine
+#     (0.50 ended it, 0.51 does not). dolt_scalar() now reopens one the
+#     engine closed, so the transaction this function opened is still open
+#     afterwards on every version, and is committed here.
 #   * A merge refused for a dirty working set leaves the transaction open, so
 #     the error path has to roll back rather than assume it was unwound.
 #
@@ -238,6 +240,18 @@ doltlite_pane_conflict_detail <- function(con, table = NULL) {
   dolt_conflicts_table(con, table)
 }
 
+# Finish a merge whose conflicts are resolved. dolt_commit() records the merge
+# commit, but the transaction the gadget opened for the merge is still open
+# afterwards -- on DoltLite 0.51, and on every version now that dolt_scalar()
+# normalises it -- and it holds the database's single write lock. Committing
+# only the Dolt side would clear the gadget's merge state while leaving the
+# caller's connection locked.
+doltlite_pane_commit_merge <- function(con, source) {
+  dolt_commit(con, sprintf("Merge branch '%s'", source))
+  if (doltlite_in_transaction(con)) DBI::dbCommit(con)
+  invisible(TRUE)
+}
+
 # Abandon a conflicted merge. Rolling back is what undoes it: conflicts
 # disappear, the rows return to their pre-merge values and is_merging clears.
 doltlite_pane_abort_merge <- function(con) {
@@ -288,9 +302,10 @@ doltlite_pane_log_table <- function(lg) {
 #'
 #' @section Committing:
 #' The Commit button refuses while a SQL transaction is open. This is not
-#' caution for its own sake: `dolt_commit()` ends the enclosing transaction, so
-#' committing from the gadget mid-`dbBegin()` would silently end a transaction
-#' the console still believes is running. Commit or roll back first.
+#' caution for its own sake: a Dolt commit includes everything written in that
+#' transaction, so committing from the gadget mid-`dbBegin()` would record work
+#' the console has not finished -- and the commit stays in the history even if
+#' the console later rolls the transaction back. Commit or roll back first.
 #'
 #' `Stage everything and commit` runs `dolt_add("-A")`, which sweeps up every
 #' change in the working set, not only the table you are looking at.
@@ -499,12 +514,13 @@ doltlite_pane_server <- function(con) {
         output$commit_msg <- shiny::renderText("Enter a commit message first.")
         return()
       }
-      # dolt_commit() ends the enclosing SQL transaction. Doing that from here
-      # would leave the console holding a transaction that no longer exists.
+      # A Dolt commit takes everything written in the open transaction, so
+      # committing here would record the console's unfinished work -- and a
+      # later dbRollback() in the console would not take it back out.
       if (doltlite_in_transaction(con)) {
         output$commit_msg <- shiny::renderText(
-          paste("A SQL transaction is open. dolt_commit() would end it,",
-                "so commit or roll back in the console first.")
+          paste("A SQL transaction is open. Committing would record its",
+                "unfinished work, so commit or roll back in the console first.")
         )
         return()
       }
@@ -674,7 +690,7 @@ doltlite_pane_server <- function(con) {
         return()
       }
       res <- tryCatch({
-        dolt_commit(con, sprintf("Merge branch '%s'", src))
+        doltlite_pane_commit_merge(con, src)
         merging(NULL)
         sprintf("Merged '%s'.", src)
       }, error = function(e) paste("failed:", conditionMessage(e)))

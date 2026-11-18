@@ -1,11 +1,6 @@
 ---
 title: "DBI conformance"
-output: rmarkdown::html_document
 ---
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-```
 
 `doltliter` runs the full [DBItest](https://dbitest.r-dbi.org) suite as part of
 its own test suite (`tests/testthat/test-dbi-compliance.R`), covering the
@@ -66,9 +61,12 @@ locale.
 These are not conformance failures — DBI does not specify them — but they will
 surprise someone expecting RSQLite:
 
-* **`dolt_commit()` ends the enclosing SQL transaction.** `doltliter` reads
-  transaction state from `sqlite3_get_autocommit()` rather than tracking it in
-  R, so `dbBegin()`/`dbCommit()` stay accurate when this happens.
+* **`dolt_commit()` inside a transaction leaves it open, and is durable
+  anyway.** Finish the transaction with `dbCommit()` as usual; a `dbRollback()`
+  after `dolt_commit()` does not undo the Dolt commit. DoltLite 0.50 instead
+  ended the enclosing transaction; `doltliter` reopens it so the behaviour is
+  the same on every engine version, and reads transaction state from
+  `sqlite3_get_autocommit()` rather than tracking it in R.
 * **A conflicting merge in autocommit mode is rolled back entirely.**
   Conflicts are never durable in DoltLite. `dolt_merge()` returns a conflict
   report when run inside a transaction and raises otherwise. See `?dolt_merge`.

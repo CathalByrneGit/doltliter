@@ -1,14 +1,13 @@
 ---
 title: "Version-controlled data with doltliter"
-output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Version-controlled data with doltliter}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{litedown::vignette}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+litedown::reactor(collapse = TRUE, comment = "#>")
 ```
 
 This vignette walks through a full cycle: connect, write a table, commit,
@@ -190,11 +189,13 @@ Inspect the detail, then take one side (or edit the rows directly):
 dolt_conflicts_resolve(con, "ours")
 dolt_conflicts(con)
 dolt_commit(con, "Merge theirs, keeping ours")
+DBI::dbCommit(con)
 DBI::dbGetQuery(con, "SELECT id, name FROM users WHERE id = 1")
 ```
 
-`dolt_commit()` also ends the SQL transaction, so there is nothing left to
-`dbCommit()`.
+`dolt_commit()` records the merge but leaves the SQL transaction open: you
+began it, so you finish it with `dbCommit()`. The commit itself is already
+durable at that point, so a `dbRollback()` here would not undo it.
 
 ## History and blame
 
@@ -257,7 +258,7 @@ transaction that tries to upgrade after a peer advanced the store gets
 `SQLITE_BUSY_SNAPSHOT`. Both are retryable, and `dbConnect()` sets a
 five-second busy timeout by default:
 
-```{r, eval = FALSE}
+```{r, eval = FALSE, purl = FALSE}
 con <- DBI::dbConnect(Doltlite(), path, busy_timeout = 30000)
 ```
 

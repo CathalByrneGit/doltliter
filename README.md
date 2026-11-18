@@ -57,7 +57,7 @@ fails at install time rather than at the first `dolt_*` call.
 Pick a strategy with `DOLTLITER_STRATEGY=system|vendor|download` and pin the
 engine with `DOLTLITE_VERSION`. Full details, and what to do when a build
 fails, are in
-[Installation and linking strategies](https://cathalbyrnegit.github.io/doltliter/doc/installation.html).
+[Installation and linking strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html).
 
 ## Two kinds of "commit"
 
@@ -121,13 +121,13 @@ Needs the suggested `shiny`, `miniUI` and `DT`.
 
 ## Documentation
 
-* [Version-controlled data with doltliter](https://cathalbyrnegit.github.io/doltliter/doc/doltliter.html)
+* [Version-controlled data with doltliter](https://cathalbyrnegit.github.io/doltliter/articles/doltliter.html)
   — start here.
-* [Branching, merging and conflicts](https://cathalbyrnegit.github.io/doltliter/doc/version-control.html)
-* [Time travel: history, diffs and blame](https://cathalbyrnegit.github.io/doltliter/doc/time-travel.html)
-* [Using dplyr](https://cathalbyrnegit.github.io/doltliter/doc/dplyr.html)
+* [Branching, merging and conflicts](https://cathalbyrnegit.github.io/doltliter/articles/version-control.html)
+* [Time travel: history, diffs and blame](https://cathalbyrnegit.github.io/doltliter/articles/time-travel.html)
+* [Using dplyr](https://cathalbyrnegit.github.io/doltliter/articles/dplyr.html)
 * [The pane](https://cathalbyrnegit.github.io/doltliter/pane.html)
-* [Installation and linking strategies](https://cathalbyrnegit.github.io/doltliter/doc/installation.html)
+* [Installation and linking strategies](https://cathalbyrnegit.github.io/doltliter/articles/installation.html)
 
 Design notes:
 [DBI conformance](https://cathalbyrnegit.github.io/doltliter/dbi-compliance.html)

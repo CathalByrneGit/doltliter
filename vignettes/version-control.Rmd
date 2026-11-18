@@ -1,14 +1,13 @@
 ---
 title: "Branching, merging and conflicts"
-output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Branching, merging and conflicts}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{litedown::vignette}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+litedown::reactor(collapse = TRUE, comment = "#>")
 ```
 
 `vignette("doltliter")` covers a single pass through the commit loop. This
@@ -102,7 +101,7 @@ durable** — they exist only inside the transaction that produced them. A merge
 run in autocommit mode, which is what you get by default, is rolled back in
 full the moment it conflicts:
 
-```{r, error = TRUE}
+```{r, error = TRUE, purl = FALSE}
 dolt_merge(con, "regional")
 ```
 
@@ -140,10 +139,11 @@ dolt_commit(con, "Merge regional, keeping upper-case regions")
 DBI::dbGetQuery(con, "SELECT region FROM sites WHERE id = 1")
 ```
 
-Note that `dolt_commit()` also ended the SQL transaction, so there is nothing
-left for `DBI::dbCommit()` to do:
+`dolt_commit()` records the merge but leaves the SQL transaction open — you
+opened it, so you close it. The commit is already durable, so this is
+bookkeeping rather than a second chance to back out:
 
-```{r, error = TRUE}
+```{r}
 DBI::dbCommit(con)
 ```
 

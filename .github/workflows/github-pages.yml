@@ -18,11 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@HEAD
 
-      # litedown itself needs no pandoc, which is why the template has no
-      # setup step for it -- but the vignettes are still rmarkdown::html_vignette,
-      # and R CMD build cannot render those without it.
-      - uses: r-lib/actions/setup-pandoc@v2
-
       - uses: r-lib/actions/setup-r@HEAD
         with:
           use-public-rspm: true
@@ -40,8 +35,9 @@ jobs:
           rm -f doltlite-install.sh
         shell: bash
 
-      # Installs DESCRIPTION deps (incl. Suggests, so knitr/rmarkdown vignettes build),
-      # then R CMD build + INSTALL the package itself (".") so vignettes land in doc/.
+      # Installs DESCRIPTION deps (incl. Suggests, so the litedown vignettes build),
+      # then R CMD build + INSTALL the package itself ("."). No pandoc: the
+      # vignettes use litedown's engine, which renders them on its own.
       - uses: yihui/actions/setup-r-dependencies@HEAD
         with:
           extra-packages: litedown xfun .
@@ -53,8 +49,9 @@ jobs:
           # it out of the nav is not enough -- the page would still be live at
           # /playground/ and fail, since doltliter links a compiled engine and
           # has no WASM binary to install. The default cleanup is extended, not
-          # replaced: it still removes the rendered sources.
-          cleanup: 'rm -f *.Rmd *.yml _* && rm -rf playground'
+          # replaced: it still removes the rendered sources, plus the vignette
+          # sources litedown copies into articles/ and doc/.
+          cleanup: 'rm -f *.Rmd *.yml _* articles/*.Rmd doc/*.Rmd && rm -rf playground'
 
       # PR builds: upload the rendered site as a downloadable preview artifact.
       - if: github.event_name == 'pull_request'

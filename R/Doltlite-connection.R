@@ -148,12 +148,15 @@ setMethod("dbExecute", c("DoltliteConnection", "character"),
 #' A useful mental model: `dbCommit()` is "save the file", `dolt_commit()` is
 #' "commit to the repository".
 #'
-#' One asymmetry is worth remembering: [dolt_commit()] **ends the enclosing
-#' SQL transaction** as a side effect. After calling it inside a
-#' `dbBegin()`/`dbCommit()` block there is no transaction left to commit, and a
-#' further `dbCommit()` will report that none is active. This backend asks
-#' SQLite whether a transaction is open rather than tracking it separately, so
-#' [DBI::dbBegin()] and friends stay accurate either way.
+#' Calling [dolt_commit()] inside a `dbBegin()` block records the commit and
+#' **leaves the transaction open**: you began it, so you finish it with
+#' `dbCommit()` or `dbRollback()`. The Dolt commit is durable as soon as
+#' `dolt_commit()` returns, so a rollback at that point does not undo it.
+#'
+#' DoltLite 0.50 behaved differently, ending the enclosing transaction as a
+#' side effect of `dolt_commit()` and of a clean merge; 0.51 leaves it open.
+#' This backend reopens a transaction the engine closed, so the behaviour above
+#' holds on every version.
 #'
 #' Note that DoltLite permits one durable writer at a time. A second
 #' connection that begins a write transaction gets `SQLITE_BUSY` until the
@@ -494,9 +497,10 @@ setMethod("dbQuoteString", c("DoltliteConnection", "SQL"),
 
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
-# SQLite is the authority on whether a transaction is open. dolt_commit() ends
-# the enclosing SQL transaction as a side effect, so a flag maintained on the R
-# side would go stale without anything here noticing.
+# SQLite is the authority on whether a transaction is open. Some DoltLite
+# versions end an enclosing transaction from inside a dolt_* call (0.50 did, on
+# dolt_commit() and a clean merge), so a flag maintained on the R side would go
+# stale without anything here noticing.
 doltlite_in_transaction <- function(conn) {
   isTRUE(.Call(C_dltr_in_transaction, conn@ptr))
 }

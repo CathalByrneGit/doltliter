@@ -36,6 +36,10 @@ Records a new commit in the version history. This is the Dolt sense of
 "commit" and has nothing to do with [DBI::dbCommit()], which ends a SQL
 transaction; see [doltliter-transactions].
 }
+\details{
+Inside a `dbBegin()` block, `dolt_commit()` leaves the transaction open for
+you to finish with `dbCommit()`. The commit is durable either way.
+}
 \examples{
 con <- DBI::dbConnect(doltliter::Doltlite(), tempfile())
 dolt_config(con, user.name = "Ada", user.email = "ada@example.com")

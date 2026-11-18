@@ -68,9 +68,10 @@ for, and is coloured green for added, amber for modified, red for removed.
 
 Two things the buttons are explicit about:
 
-* **Commit refuses while a SQL transaction is open.** `dolt_commit()` ends the
-  enclosing transaction, so committing from the gadget mid-`dbBegin()` would
-  silently end a transaction your console still believes is running.
+* **Commit refuses while a SQL transaction is open.** A Dolt commit takes
+  everything written in that transaction, so committing from the gadget
+  mid-`dbBegin()` would record work your console has not finished — and a
+  later `dbRollback()` would not take it back out of the history.
 * **"Stage everything and commit"** is named that way because `dolt_add("-A")`
   sweeps the whole working set, not just the table on screen.
 

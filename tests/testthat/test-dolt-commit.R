@@ -10,7 +10,45 @@ test_that("a fresh database starts with one commit and a clean status", {
   con <- local_dolt()
   expect_equal(nrow(dolt_status(con)), 0L)
   expect_equal(nrow(dolt_log(con)), 1L)
-  expect_identical(dolt_log(con)$message, "Initialize data repository")
+  # DoltLite 0.51 appends a per-database random id in parentheses; 0.50 did
+  # not. Assert on the stable prefix so the test holds on both.
+  expect_match(dolt_log(con)$message, "^Initialize data repository( \\([0-9a-f]+\\))?$")
+})
+
+test_that("dolt_commit() leaves a transaction the caller opened open", {
+  # DoltLite 0.50 ended an enclosing transaction on dolt_commit(); 0.51 does
+  # not. dolt_scalar() normalises to the 0.51 behaviour, so this holds on
+  # every engine: the caller began the transaction and the caller finishes it.
+  con <- local_dolt()
+  DBI::dbBegin(con)
+  DBI::dbWriteTable(con, "t", data.frame(id = 1:2))
+  dolt_commit(con, "inside a transaction")
+
+  expect_true(asNamespace("doltliter")$doltlite_in_transaction(con))
+  expect_true("inside a transaction" %in% dolt_log(con)$message)
+  expect_silent(DBI::dbCommit(con))
+  expect_false(asNamespace("doltliter")$doltlite_in_transaction(con))
+})
+
+test_that("rolling back after dolt_commit() does not undo the commit", {
+  # The transaction left open after a Dolt commit is empty: the commit and
+  # the rows it recorded are already durable.
+  con <- local_dolt()
+  DBI::dbBegin(con)
+  DBI::dbWriteTable(con, "t", data.frame(id = 1:3))
+  dolt_commit(con, "durable")
+  DBI::dbRollback(con)
+
+  expect_true("durable" %in% dolt_log(con)$message)
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t")$n, 3L)
+  expect_identical(nrow(dolt_status(con)), 0L)
+})
+
+test_that("dolt_commit() in autocommit mode opens no transaction", {
+  con <- local_dolt()
+  DBI::dbWriteTable(con, "t", data.frame(id = 1L))
+  dolt_commit(con, "autocommit")
+  expect_false(asNamespace("doltliter")$doltlite_in_transaction(con))
 })
 
 test_that("status reports uncommitted work and clears after committing", {

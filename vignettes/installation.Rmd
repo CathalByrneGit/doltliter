@@ -1,14 +1,13 @@
 ---
 title: "Installation and linking strategies"
-output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Installation and linking strategies}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{litedown::vignette}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+litedown::reactor(collapse = TRUE, comment = "#>")
 ```
 
 `doltliter` embeds a C library. Unlike RSQLite, which vendors `sqlite3.c` and
@@ -17,7 +16,7 @@ build against — and the right way to do that differs by platform. This article
 explains what `configure` does, so that when it picks something unexpected you
 know why.
 
-```{r, eval = FALSE}
+```{r, eval = FALSE, purl = FALSE}
 # install.packages("remotes")
 remotes::install_github("CathalByrneGit/doltliter")
 ```
@@ -111,13 +110,13 @@ database is created in the *original* B-tree format, so none of the `dolt_*`
 functions exist there. The package says so plainly rather than letting SQLite
 report "no such function":
 
-```{r, error = TRUE}
+```{r, error = TRUE, purl = FALSE}
 tmp <- DBI::dbConnect(Doltlite(), "")
 DBI::dbGetQuery(tmp, "SELECT doltlite_engine() AS engine")
 dolt_status(tmp)
 ```
 
-```{r, include = FALSE}
+```{r, include = FALSE, purl = FALSE}
 DBI::dbDisconnect(tmp)
 ```
 

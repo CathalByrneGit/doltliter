@@ -38,9 +38,10 @@ at the cost of blocking the console while the gadget is open.
 \section{Committing}{
 
 The Commit button refuses while a SQL transaction is open. This is not
-caution for its own sake: `dolt_commit()` ends the enclosing transaction, so
-committing from the gadget mid-`dbBegin()` would silently end a transaction
-the console still believes is running. Commit or roll back first.
+caution for its own sake: a Dolt commit includes everything written in that
+transaction, so committing from the gadget mid-`dbBegin()` would record work
+the console has not finished -- and the commit stays in the history even if
+the console later rolls the transaction back. Commit or roll back first.
 
 `Stage everything and commit` runs `dolt_add("-A")`, which sweeps up every
 change in the working set, not only the table you are looking at.

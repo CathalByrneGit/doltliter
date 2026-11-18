@@ -86,10 +86,12 @@ test_that("conflicting edits surface as conflicts and can be resolved", {
 
   dolt_conflicts_resolve(con, "ours")
   expect_equal(nrow(dolt_conflicts(con)), 0L)
-  # dolt_commit() also ends the SQL transaction, so there is nothing left for
-  # dbCommit() to do.
+  # dolt_commit() records the merge but leaves the transaction open, on every
+  # engine version, so the caller finishes it.
   dolt_commit(con, "merge theirs, keeping ours")
-  expect_error(DBI::dbCommit(con), "no transaction")
+  expect_true(asNamespace("doltliter")$doltlite_in_transaction(con))
+  DBI::dbCommit(con)
+  expect_false(asNamespace("doltliter")$doltlite_in_transaction(con))
 
   expect_equal(DBI::dbGetQuery(con, "SELECT nm FROM users WHERE id = 1")$nm, "OURS")
 })

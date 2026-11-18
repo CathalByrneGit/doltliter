@@ -70,6 +70,9 @@ dolt_add <- function(con, tables = NULL, all = is.null(tables)) {
 #' "commit" and has nothing to do with [DBI::dbCommit()], which ends a SQL
 #' transaction; see [doltliter-transactions].
 #'
+#' Inside a `dbBegin()` block, `dolt_commit()` leaves the transaction open for
+#' you to finish with `dbCommit()`. The commit is durable either way.
+#'
 #' @param con a `DoltliteConnection`.
 #' @param message the commit message.
 #' @param author optionally `"Name <email>"`, overriding [dolt_config()] for

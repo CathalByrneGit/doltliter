@@ -1,18 +1,13 @@
 ---
 title: "The pane"
-output: rmarkdown::html_document
 ---
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
-```
 
 `dolt_pane()` is a Shiny gadget, and an RStudio addin, in the spirit of
 RStudio's Git pane: what has changed, what the change looks like row by row,
 the history, and the branch operations — over a connection you already have
 open.
 
-```{r}
+```r
 library(doltliter)
 
 con <- DBI::dbConnect(Doltlite(), "mydata.db")
@@ -25,7 +20,7 @@ if there are several, it says so rather than guessing. There is also an
 
 It needs the suggested packages:
 
-```{r}
+```r
 install.packages(c("shiny", "miniUI", "DT"))
 ```
 
@@ -140,7 +135,7 @@ one optional entry point in a package whose job is to be a DBI backend, and
 most users of the backend never open it. `dolt_pane()` names what is missing
 rather than failing obscurely:
 
-```{r}
+```r
 dolt_pane(con)
 #> Error: dolt_pane() needs shiny, miniUI and DT. Install with:
 #>   install.packages(c("shiny", "miniUI", "DT"))

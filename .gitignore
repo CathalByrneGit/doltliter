@@ -8,10 +8,14 @@
 src/Makevars
 src/Makevars.win
 src/doltlite/
+src/doltlite_amalgamation.c
 src/doltlite-lib/
 config.log
 doltliter.Rcheck/
 *.tar.gz
 
-# pkgdown output; the site is published from the gh-pages branch
-docs/
+# litedown renders the built site into site/; only the sources are tracked
+site/*.html
+site/*.css
+site/*.js
+site/doc/

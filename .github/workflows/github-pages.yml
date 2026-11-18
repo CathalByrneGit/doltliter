@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@HEAD
 
+      # litedown itself needs no pandoc, which is why the template has no
+      # setup step for it -- but the vignettes are still rmarkdown::html_vignette,
+      # and R CMD build cannot render those without it.
+      - uses: r-lib/actions/setup-pandoc@v2
+
       - uses: r-lib/actions/setup-r@HEAD
         with:
           use-public-rspm: true

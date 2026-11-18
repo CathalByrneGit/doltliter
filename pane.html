@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="generator" content="litedown 1.0.22">
+<title>The pane</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/default.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/article.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/copy-button.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/heading-anchor.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/pages.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/site.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/prism-xcode.min.css">
+<meta name="function-index" content="function-index.json">
+</head>
+<body>
+<nav class="site-nav"><p><a href="manual.html">Reference</a>
+<a href="articles.html">Articles</a>
+<a href="pane.html">The pane</a>
+<a href="dbi-compliance.html">DBI conformance</a>
+<a href="feasibility-notes.html">Native binding</a>
+<a href="index.html" class="brand">doltliter</a> <small class="version">v0.1.0</small>
+<span class="pagesjs-toggle"></span>
+<a href="https://github.com/CathalByrneGit/doltliter/" title="GitHub repository"><img src="https://cdn.jsdelivr.net/npm/@primer/octicons@19/build/svg/mark-github-24.svg" alt="GitHub" class="no-invert" /></a></p></nav>
+<header class="frontmatter">
+<div class="title"><h1>The pane</h1></div>
+
+
+
+</header>
+<main>
+<article class="">
+<nav id="TOC" class="side side-left">
+<ul class="numbered">
+<li><a href="#sec:it-runs-on-your-connection-and-that-is-the-whole-design"><span class="section-number main-number">1</span> It runs on your connection, and that is the whole design</a></li>
+<li><a href="#sec:changes"><span class="section-number main-number">2</span> Changes</a></li>
+<li><a href="#sec:branches"><span class="section-number main-number">3</span> Branches</a></li>
+<li><a href="#sec:merging-and-conflicts"><span class="section-number main-number">4</span> Merging, and conflicts</a></li>
+<li><a href="#sec:what-is-not-there"><span class="section-number main-number">5</span> What is not there</a></li>
+<li><a href="#sec:packaging"><span class="section-number main-number">6</span> Packaging</a></li>
+</ul>
+</nav>
+<p><code>dolt_pane()</code> is a Shiny gadget, and an RStudio addin, in the spirit of
+RStudio’s Git pane: what has changed, what the change looks like row by row,
+the history, and the branch operations — over a connection you already have
+open.</p>
+<pre><code class="language-r">library(doltliter)
+
+con &lt;- DBI::dbConnect(Doltlite(), &quot;mydata.db&quot;)
+dolt_pane(con)
+</code></pre>
+<p>Call it with no arguments and it uses the single open connection it can find;
+if there are several, it says so rather than guessing. There is also an
+<strong>Addins → DoltLite pane</strong> entry, which does the same thing.</p>
+<p>It needs the suggested packages:</p>
+<pre><code class="language-r">install.packages(c(&quot;shiny&quot;, &quot;miniUI&quot;, &quot;DT&quot;))
+</code></pre>
+<h2 id="sec:it-runs-on-your-connection-and-that-is-the-whole-design"><span class="section-number main-number">1</span> It runs on your connection, and that is the whole design</h2>
+<p>The obvious way to build this would be a background process watching the
+database file, so the pane could sit there permanently like the Git pane does.
+That does not work here, and it is worth knowing why before the screenshots
+make it look simpler than it is.</p>
+<p>A background pane means a <em>second connection</em>. Measured against a first:</p>
+<table>
+<thead>
+<tr>
+<th>What a pane needs</th>
+<th>On a second connection</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>See uncommitted changes</td>
+<td>works</td>
+</tr>
+<tr>
+<td>Commit them</td>
+<td>works</td>
+</tr>
+<tr>
+<td>Report the branch you are on</td>
+<td><strong>wrong</strong> — you on <code>feature</code>, it says <code>main</code></td>
+</tr>
+<tr>
+<td>See work inside an open transaction</td>
+<td><strong>blind</strong> — nothing, while you have changes</td>
+</tr>
+<tr>
+<td>Write while you hold a transaction</td>
+<td><strong>fails</strong> — <code>database is locked</code></td>
+</tr>
+</tbody>
+</table>
+<p>The third row is the one that settles it. Branches in DoltLite are per
+connection, so a background pane would show its own branch rather than yours,
+and pressing Commit could land your work on a branch you are not on, silently.
+Rows four and five are each independently fatal.</p>
+<p>So the gadget runs in your R session, on the connection you hand it. The cost
+is that it blocks the console while open, which is the honest trade rather than
+a limitation to apologise for: the state that matters — your branch, your
+transaction, your uncommitted rows — lives in your connection and nowhere else.</p>
+<h2 id="sec:changes"><span class="section-number main-number">2</span> Changes</h2>
+<p>The working set, the row-level diff for whichever table you select, and a
+commit box.</p>
+<p><img src="pane-changes.png" alt="The Changes tab: two modified tables, the diff for one of them, and the commit box" /></p>
+<p>The diff is where this beats the Git pane rather than imitating it. Git’s
+diffs are text, so a GUI adds modest value. <code>dolt_table_diff()</code> returns
+<em>structured rows</em> — <code>from_</code>/<code>to_</code> column pairs — which is genuinely better in a
+sortable table than printed at the console, and it is the thing you most want
+to look at before committing. <code>diff_type</code> leads because it is what you scan
+for, and is coloured green for added, amber for modified, red for removed.</p>
+<p>Two things the buttons are explicit about:</p>
+<ul>
+<li><strong>Commit refuses while a SQL transaction is open.</strong> A Dolt commit takes
+everything written in that transaction, so committing from the gadget
+mid-<code>dbBegin()</code> would record work your console has not finished — and a
+later <code>dbRollback()</code> would not take it back out of the history.</li>
+<li><strong>“Stage everything and commit”</strong> is named that way because <code>dolt_add(&quot;-A&quot;)</code>
+sweeps the whole working set, not just the table on screen.</li>
+</ul>
+<h2 id="sec:branches"><span class="section-number main-number">3</span> Branches</h2>
+<p>List, create, switch, and merge.</p>
+<p><img src="pane-branches.png" alt="The Branches tab: the branch list with the current branch marked, and controls to create, switch and merge" /></p>
+<h2 id="sec:merging-and-conflicts"><span class="section-number main-number">4</span> Merging, and conflicts</h2>
+<p>Merges run inside a transaction because they have to. DoltLite rolls a
+conflicting merge back whole in autocommit mode, so there would be nothing left
+to inspect — conflicts are only reachable inside <code>BEGIN</code>/<code>COMMIT</code>. When one
+conflicts, the gadget holds that transaction open and shows you base, ours and
+theirs side by side.</p>
+<p><img src="pane-conflicts.png" alt="A conflicted merge: the conflicted tables listed with their counts, and base, ours and theirs for the selected one" /></p>
+<p>Conflicts are handled one table at a time, because the conflict columns follow
+the shape of the table they belong to — <code>our_team</code> for one table,
+<code>our_region</code> for another — so several conflicted tables genuinely cannot share
+a view. The picker lists them with their counts and the detail follows your
+selection.</p>
+<p><code>Keep ours</code> and <code>Keep theirs</code> resolve the table you are looking at, not every
+conflicted one. That is deliberate twice over: a button that silently acted on
+tables off screen would be a trap, and the whole reason two tables conflict
+separately is that they may deserve different answers.</p>
+<p><img src="pane-resolving.png" alt="After resolving one table: it leaves the list, the other stays conflicted" /></p>
+<p>Tables leave the list as they are resolved, so it empties as you work through
+it. Then <code>Commit merge</code> finishes, or <code>Abort</code> rolls the whole thing back —
+which restores the rows and clears the merge, since a rollback is exactly what
+undoes an unfinished merge.</p>
+<p>Two consequences worth keeping in mind:</p>
+<ul>
+<li><strong>A conflicted merge means an open transaction on your connection.</strong> Finish
+or abort it before going back to the console. Closing the window rolls it
+back rather than stranding it.</li>
+<li><strong>A merge is refused while the working set is dirty</strong>, because DoltLite
+requires a clean one. Commit on the Changes tab first.</li>
+</ul>
+<h2 id="sec:what-is-not-there"><span class="section-number main-number">5</span> What is not there</h2>
+<p><strong>Remotes.</strong> <code>dolt_push()</code>, <code>dolt_pull()</code> and friends are not wrapped here.
+They need a configured remote and credentials, and their side effects reach
+beyond your machine — a different class of risk from everything above.</p>
+<p><strong>Tags, reset, revert, cherry-pick.</strong> All available as functions; none have
+buttons yet.</p>
+<h2 id="sec:packaging"><span class="section-number main-number">6</span> Packaging</h2>
+<p><code>shiny</code>, <code>miniUI</code>, <code>DT</code> and <code>rstudioapi</code> are <code>Suggests</code>, not <code>Imports</code>. This is
+one optional entry point in a package whose job is to be a DBI backend, and
+most users of the backend never open it. <code>dolt_pane()</code> names what is missing
+rather than failing obscurely:</p>
+<pre><code class="language-r">dolt_pane(con)
+#&gt; Error: dolt_pane() needs shiny, miniUI and DT. Install with:
+#&gt;   install.packages(c(&quot;shiny&quot;, &quot;miniUI&quot;, &quot;DT&quot;))
+</code></pre>
+<p>Four suggested packages for one function is a fair argument for eventually
+moving the pane into a companion package. It costs nothing while the package
+is distributed from GitHub.</p>
+
+</article>
+</main>
+<footer><div class="flex-col">
+<p>Developed by Cathal Byrne</p>
+<p>Site built with <a href="https://github.com/yihui/litedown">litedown</a> v1.0.22</p>
+</div></footer>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/sidenotes.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/toc-highlight.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/copy-button.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/heading-anchor.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/pages.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/nav-highlight.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/prism-lite.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/link-functions.min.js" defer></script>
+</body>
+</html>

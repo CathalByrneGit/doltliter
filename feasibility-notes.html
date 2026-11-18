@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="generator" content="litedown 1.0.22">
+<title>Why a native binding, and how it links</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/default.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/article.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/copy-button.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/heading-anchor.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/pages.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/css/site.min.css">
+<meta name="function-index" content="function-index.json">
+</head>
+<body>
+<nav class="site-nav"><p><a href="manual.html">Reference</a>
+<a href="articles.html">Articles</a>
+<a href="pane.html">The pane</a>
+<a href="dbi-compliance.html">DBI conformance</a>
+<a href="feasibility-notes.html">Native binding</a>
+<a href="index.html" class="brand">doltliter</a> <small class="version">v0.1.0</small>
+<span class="pagesjs-toggle"></span>
+<a href="https://github.com/CathalByrneGit/doltliter/" title="GitHub repository"><img src="https://cdn.jsdelivr.net/npm/@primer/octicons@19/build/svg/mark-github-24.svg" alt="GitHub" class="no-invert" /></a></p></nav>
+<header class="frontmatter">
+<div class="title"><h1>Why a native binding, and how it links</h1></div>
+
+
+
+</header>
+<main>
+<article class="">
+<nav id="TOC" class="side side-left">
+<ul class="numbered">
+<li><a href="#sec:1-verdict"><span class="section-number main-number">1</span> 1. Verdict</a></li>
+<li><a href="#sec:2-what-r-actually-did"><span class="section-number main-number">2</span> 2. What R actually did</a></li>
+<li><a href="#sec:3-release-artifacts-verified-against-the-v0-50-3-asset-list"><span class="section-number main-number">3</span> 3. Release artifacts (verified against the v0.50.3 asset list)</a></li>
+<li><a href="#sec:4-chosen-strategy-a-three-tier-configure"><span class="section-number main-number">4</span> 4. Chosen strategy: a three-tier <code>configure</code></a>
+<ul>
+<li><a href="#sec:version-stamping-a-real-trap"><span class="section-number">4.1</span> Version stamping (a real trap)</a></li>
+</ul>
+</li>
+<li><a href="#sec:5-abi-and-version-pinning"><span class="section-number main-number">5</span> 5. ABI and version pinning</a></li>
+<li><a href="#sec:6-behaviours-the-dbi-layer-must-accommodate"><span class="section-number main-number">6</span> 6. Behaviours the DBI layer must accommodate</a>
+<ul>
+<li><a href="#sec:result-shapes-needed-for-phase-4-wrappers"><span class="section-number">6.1</span> Result shapes (needed for Phase 4 wrappers)</a></li>
+</ul>
+</li>
+<li><a href="#sec:7-branch-suffix-paths-and-r-path-handling"><span class="section-number main-number">7</span> 7. Branch-suffix paths and R path handling</a></li>
+<li><a href="#sec:8-consequences-for-the-rest-of-the-plan"><span class="section-number main-number">8</span> 8. Consequences for the rest of the plan</a></li>
+<li><a href="#sec:appendix-confirmed-during-implementation"><span class="section-number main-number">9</span> Appendix: confirmed during implementation</a>
+<ul>
+<li><a href="#sec:known-trade-off-the-vendored-amalgamation-trips-r-s-pragma-check"><span class="section-number">9.1</span> Known trade-off: the vendored amalgamation trips R’s pragma check</a></li>
+<li><a href="#sec:known-trade-off-installed-size"><span class="section-number">9.2</span> Known trade-off: installed size</a></li>
+</ul>
+</li>
+</ul>
+</nav>
+<p>Investigation date: 2026-09-03.
+Upstream studied: <code>dolthub/doltlite</code> @ <code>master</code> (shallow clone), release <strong>v0.50.3</strong>
+(bundled SQLite <strong>3.54.0</strong>, chunk-store format <strong>v12</strong>, “beta”).</p>
+<p>Everything below was <strong>executed</strong>, not inferred from documentation. Where the
+upstream README and the actual release artifacts disagree, the artifacts win and
+the disagreement is called out.</p>
+<hr />
+<h2 id="sec:1-verdict"><span class="section-number main-number">1</span> 1. Verdict</h2>
+<p>Native binding is <strong>viable</strong>. R links <code>libdoltlite</code> and drives the full
+version-control surface. The <code>reticulate</code> fallback (option 3 in the brief) is
+<strong>not needed</strong> and is not pursued.</p>
+<p>Two independent link paths were proven end to end:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Result</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prebuilt <code>libdoltlite.a</code> from the release lib zip</td>
+<td><strong>works</strong></td>
+<td>link &lt; 1 s</td>
+</tr>
+<tr>
+<td>Vendored single-file amalgamation (<code>doltlite.c</code>)</td>
+<td><strong>works</strong></td>
+<td>71 s compile at <code>-O2</code>, 4.1 MB object</td>
+</tr>
+</tbody>
+</table>
+<p>Both produced identical behaviour from R and from plain C.</p>
+<h2 id="sec:2-what-r-actually-did"><span class="section-number main-number">2</span> 2. What R actually did</h2>
+<p>A throwaway package (<code>dlprobe</code>, plain <code>.Call</code> + <code>R_init_dlprobe</code>, no Rcpp)
+compiled <code>#include &lt;doltlite.h&gt;</code> and linked <code>libdoltlite.a</code> with
+<code>PKG_LIBS = .../libdoltlite.a -lpthread -lz -lm</code>.
+<code>R CMD INSTALL</code> succeeded unmodified, and from an R session:</p>
+<pre><code>engine       : prolly
+dolt_version : v0.50.3
+sqlite ver   : 3.54.0
+branch       : main
+</code></pre>
+<p>A fuller C probe drove a complete round trip against both link paths —
+<code>dolt_config</code> → <code>CREATE TABLE</code> → <code>dolt_commit('-Am', ...)</code> → <code>dolt_branch</code> →
+<code>dolt_checkout</code> → <code>UPDATE</code> → <code>dolt_commit</code> → <code>dolt_diff_users('main','experiment')</code>
+→ <code>dolt_checkout('main')</code> → <code>dolt_merge('experiment')</code> — and the merged table
+contained the expected rows. So the version-control features are reachable
+purely as SQL over the ordinary <code>sqlite3_*</code> API, which is what makes Phase 4 a
+thin R layer rather than new C bindings.</p>
+<h2 id="sec:3-release-artifacts-verified-against-the-v0-50-3-asset-list"><span class="section-number main-number">3</span> 3. Release artifacts (verified against the v0.50.3 asset list)</h2>
+<pre><code>doltlite-amalgamation-0.50.3.zip      doltlite-lib-linux-x64-0.50.3.zip
+doltlite-autoconf-0.50.3.tar.gz       doltlite-lib-linux-arm64-0.50.3.zip
+doltlite-lib-osx-arm64-0.50.3.zip     doltlite-lib-win-x64-0.50.3.zip
+doltlite-tools-{linux-x64,linux-arm64,osx-arm64,win-x64}-0.50.3.zip
+doltlite{,-dev,0}_0.50.3_{amd64,arm64}.deb        install.sh
+doltlite-0.50.3.xcframework.zip       doltlite-wasm-0.50.3.zip
+</code></pre>
+<p>Three findings that change the <code>configure</code> design:</p>
+<ol>
+<li><strong>A Windows lib zip <em>does</em> exist</strong> — <code>doltlite-lib-win-x64-0.50.3.zip</code>. The
+README’s Windows section mentions only <code>doltlite.exe</code>, so the brief’s open
+question (“only the CLI <code>.exe</code>?”) is answered: the README is incomplete.</li>
+<li><strong>But that zip ships only <code>libdoltlite.dll</code></strong> — no <code>.a</code>, no <code>.lib</code>, and <strong>no
+<code>.dll.a</code> import library</strong>. So “prebuilt Windows lib” does not mean “drop-in
+linkable with Rtools”. This is why <code>configure.win</code> prefers the amalgamation
+(below) rather than the prebuilt lib.</li>
+<li><strong>There is no <code>osx-x64</code> lib asset.</strong> <code>install.sh</code> lists <code>osx-x64</code> among
+supported targets, but no such asset is published. Intel macOS therefore has
+<em>no</em> prebuilt lib and must use the amalgamation.</li>
+</ol>
+<p>The amalgamation zip contains exactly three files — <code>doltlite.c</code> (19.7 MB),
+<code>doltlite.h</code> (698 KB), <code>doltliteext.h</code> — i.e. the same shape as SQLite’s
+amalgamation that RSQLite vendors.</p>
+<h2 id="sec:4-chosen-strategy-a-three-tier-configure"><span class="section-number main-number">4</span> 4. Chosen strategy: a three-tier <code>configure</code></h2>
+<p>The brief ranked “download a prebuilt lib at install time” first and noted that
+static vendoring is the CRAN-safe alternative. Because the amalgamation compiles
+cleanly in 71 s, we get both, and neither is a fallback for a <em>failure</em> of the
+other — they are ordered by cost:</p>
+<ol>
+<li><strong>Tier 1 — use an existing <code>libdoltlite</code>.</strong> <code>pkg-config --exists doltlite</code>,
+then <code>DOLTLITE_HOME</code>, then explicit <code>DOLTLITE_CFLAGS</code>/<code>DOLTLITE_LIBS</code>, then
+common prefixes (<code>/usr/local</code>, <code>/usr</code>, <code>/opt/homebrew</code>, <code>/opt/local</code>).
+Costs nothing, honours a user’s <code>.deb</code>/Homebrew/<code>make install</code>.</li>
+<li><strong>Tier 2 — compile a vendored amalgamation</strong> from <code>src/doltlite/doltlite.c</code>
+when present. No network, deterministic, exact version pinning. <strong>This is the
+CRAN path</strong>, and the default on Windows and Intel macOS.</li>
+<li><strong>Tier 3 — download the matching release lib zip</strong> and link it. Best UX for
+<code>remotes::install_github()</code> on a machine with no system install.</li>
+</ol>
+<p><code>DOLTLITER_STRATEGY=system|vendor|download</code> forces one tier;
+<code>DOLTLITE_VERSION</code> pins the version used by tiers 2 and 3.</p>
+<p>The 19.7 MB <code>doltlite.c</code> is <em>not</em> committed to this repository — it is generated
+third-party source. <code>tools/vendor_amalgamation.R</code> fetches and stages it into
+<code>src/doltlite/</code>, so the CRAN path is reproducible without carrying the blob in
+git history.</p>
+<h3 id="sec:version-stamping-a-real-trap"><span class="section-number">4.1</span> Version stamping (a real trap)</h3>
+<p><code>dolt_version()</code> is compiled in from <code>git describe</code>. Built from the
+amalgamation it returns the literal string <strong><code>doltlite-amalgamation</code></strong>, not a
+version. Any release-pinning check keyed on <code>dolt_version()</code> therefore breaks on
+exactly the build path we recommend for CRAN. The fix is to compile with
+<code>-DDOLTLITE_VERSION='&quot;vX.Y.Z&quot;'</code>, which <code>configure</code> does from the staged
+version file. <code>doltlite_engine()</code> (returns <code>prolly</code>) and <code>sqlite3_libversion()</code>
+(<code>3.54.0</code>) are reliable regardless of build path and are what <code>.onLoad</code>/
+<code>dbGetInfo</code> should lean on.</p>
+<h2 id="sec:5-abi-and-version-pinning"><span class="section-number main-number">5</span> 5. ABI and version pinning</h2>
+<p>Format version <strong>12</strong> is frozen for the beta, and <strong>readers require an exact
+<code>CHUNK_STORE_VERSION</code> match</strong> — a mismatch returns <code>SQLITE_NOTADB</code> with no
+silent reinterpretation. So the risk is not C-ABI drift (the surface is
+SQLite’s own <code>sqlite3_*</code>, plus four exported <code>doltlite*</code>/<code>doltliteServe*</code>
+symbols) but <em>file</em>-format drift. Any file written by a version-12 build stays
+readable by later version-12 builds.</p>
+<p>Practical consequence: pin a known-good DoltLite version for tiers 2 and 3,
+report the resolved version from <code>dbGetInfo()</code>, and treat <code>SQLITE_NOTADB</code> on
+open as “database written by a different DoltLite format version” in the error
+message, because that is overwhelmingly what it means here.</p>
+<p>Note also that the shared library <strong>hides</strong> prolly/chunk-store internals and
+exports only <code>sqlite3_*</code>, <code>doltliteServe*</code>, <code>doltlite_set_chunk_source</code>, and
+<code>doltlite_init_lazy</code>; the static archive is unfiltered. We only need <code>sqlite3_*</code>,
+so either works.</p>
+<h2 id="sec:6-behaviours-the-dbi-layer-must-accommodate"><span class="section-number main-number">6</span> 6. Behaviours the DBI layer must accommodate</h2>
+<p>Measured with a purpose-built shell (<code>dlsh</code>) linked against the static lib.</p>
+<ul>
+<li><strong><code>dbWriteTable</code>’s default <code>CREATE TABLE</code> is safe.</strong> A table with no primary
+key keeps a working <code>rowid</code> (<code>SELECT rowid, * FROM norow</code> returned <code>1|1|x</code>),
+so RSQLite’s table-creation logic needs no change for the common path.</li>
+<li><strong>Non-<code>INTEGER</code> primary keys are clustered.</strong> <code>pragma_table_info</code> reports
+<code>notnull=1</code> on the PK, and <code>INSERT INTO t2(rowid,...)</code> fails at <em>prepare</em> time
+with <code>table t2 has no column named rowid</code>. This only bites when a user
+supplies such a PK — but <code>dbWriteTable(..., field.types=)</code> can, so it must be
+documented rather than discovered.</li>
+<li><strong>Explicit <code>WITHOUT ROWID</code> works</strong> as in SQLite.</li>
+<li><strong><code>PRAGMA journal_mode</code></strong> returns <code>wal</code> for a file-backed database and
+<code>memory</code> for <code>:memory:</code>, and ignores attempts to change it.</li>
+<li><strong>Transactions behave normally</strong>: <code>BEGIN</code>/<code>COMMIT</code>/<code>ROLLBACK</code> and
+<code>BEGIN IMMEDIATE</code> all worked. These are SQLite transactions and are
+<strong>unrelated to <code>dolt_commit</code></strong> — the two senses of “commit” must be
+documented prominently.</li>
+<li><strong>One durable writer at a time</strong>: a second concurrent writer gets
+<code>SQLITE_BUSY</code>, and a read-snapshot transaction that tries to upgrade after a
+peer advanced the store gets <code>SQLITE_BUSY_SNAPSHOT</code>. The backend needs a busy
+timeout and should surface these as retryable.</li>
+<li><strong><code>dbstat</code> is unsupported</strong> on DoltLite-format databases (errors rather than
+reporting empty), and <code>sqlite_master.sql</code> is a <em>canonicalized</em> projection of
+the prolly catalog, not verbatim DDL — so tests must not assert exact DDL text.</li>
+<li><strong>A transaction may write only one file-backed database</strong>; multi-database
+writes are rejected wholesale. Relevant to <code>ATTACH</code>-based <code>DBItest</code> cases.</li>
+</ul>
+<h3 id="sec:result-shapes-needed-for-phase-4-wrappers"><span class="section-number">6.1</span> Result shapes (needed for Phase 4 wrappers)</h3>
+<table>
+<thead>
+<tr>
+<th>Relation</th>
+<th>Columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dolt_status</code></td>
+<td><code>table_name, staged, status</code></td>
+</tr>
+<tr>
+<td><code>dolt_log</code></td>
+<td><code>commit_hash, committer, email, date, message</code></td>
+</tr>
+<tr>
+<td><code>dolt_branches</code></td>
+<td><code>name, hash, latest_committer, latest_committer_email, latest_commit_date, latest_commit_message, remote, branch, dirty</code></td>
+</tr>
+<tr>
+<td><code>dolt_diff</code></td>
+<td><code>commit_hash, committer, email, date, message, data_change, schema_change, table_name</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>dolt_commit</code> returns the new commit hash as text; <code>dolt_config</code> returns <code>0</code>.</p>
+<p><strong>Critical shape distinction for Phase 4:</strong> the version-control surface is split
+between <em>scalar functions</em> (<code>dolt_commit</code>, <code>dolt_branch</code>, <code>dolt_checkout</code>,
+<code>dolt_merge</code>, <code>dolt_config</code>, <code>active_branch</code>, …), called as
+<code>SELECT dolt_x(...)</code>, and <em>virtual tables / table-valued functions</em>
+(<code>dolt_log</code>, <code>dolt_status</code>, <code>dolt_diff</code>, <code>dolt_diff_&lt;table&gt;</code>,
+<code>dolt_history_&lt;table&gt;</code>, <code>dolt_blame_&lt;table&gt;</code>, <code>dolt_diff_stat</code>, <code>dolt_patch</code>, …),
+which must be called as <code>SELECT * FROM dolt_x(...)</code>. The sketch in the brief
+uses the scalar form throughout; applying it to <code>dolt_log</code>/<code>dolt_diff</code> would not
+work. The helper layer therefore has two constructors, not one.</p>
+<h2 id="sec:7-branch-suffix-paths-and-r-path-handling"><span class="section-number main-number">7</span> 7. Branch-suffix paths and R path handling</h2>
+<p><code>sqlite3_open(&quot;my.db@feature&quot;)</code> selects a branch; <code>my.db/feature</code> does the same,
+and <code>my.db/&lt;tag|hash|main~1&gt;</code> opens a <strong>read-only detached snapshot</strong> where
+<code>active_branch()</code> is <code>NULL</code>.</p>
+<p>The <code>/</code> form is ambiguous with an ordinary path separator and cannot be
+disentangled reliably on either platform, so <code>doltliter</code> <strong>always emits the <code>@</code>
+form</strong> internally and takes the branch as an explicit <code>branch =</code> argument.
+<code>dbname</code> is expanded (<code>path.expand</code>) but deliberately <strong>not</strong> <code>normalizePath</code>-ed
+with a suffix attached, since a <code>db@branch</code> string is not an existing file.
+An <code>@</code> in the <code>dbname</code> itself is honoured as user-supplied revision syntax, and
+supplying both that and <code>branch =</code> is an error rather than a silent precedence
+rule.</p>
+<h2 id="sec:8-consequences-for-the-rest-of-the-plan"><span class="section-number main-number">8</span> 8. Consequences for the rest of the plan</h2>
+<ul>
+<li>Phases 2–5 proceed as written; the <code>reticulate</code> pivot is off the table and the
+package keeps the name <code>doltliter</code>.</li>
+<li>Phase 4 is SQL-only, as the brief predicted — confirmed by driving the whole
+commit/branch/merge loop through <code>sqlite3_prepare_v2</code>/<code>step</code> alone.</li>
+<li>Phase 6’s CRAN-vs-GitHub tension is resolved by tier 2 existing: GitHub
+installs get tiers 1/3 for speed, and a CRAN submission ships the vendored
+amalgamation with no install-time download.</li>
+</ul>
+<hr />
+<h2 id="sec:appendix-confirmed-during-implementation"><span class="section-number main-number">9</span> Appendix: confirmed during implementation</h2>
+<p>The plan above survived contact with the code. All three <code>configure</code> tiers were
+built and run end to end on Linux x86_64:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code> (prefix <code>/usr/local</code>)</td>
+<td>installs, <code>doltlite_engine()</code> → <code>prolly</code></td>
+</tr>
+<tr>
+<td><code>vendor</code> (amalgamation)</td>
+<td>installs, <code>dolt_version()</code> → <code>v0.50.3</code> via the version stamp</td>
+</tr>
+<tr>
+<td><code>download</code> (release lib zip)</td>
+<td>installs, full commit/branch round trip</td>
+</tr>
+</tbody>
+</table>
+<p>A golden-file check against the <code>doltlite</code> CLI (<code>tools/golden_file_check.R</code>)
+reports byte-identical <code>dolt_hashof_table()</code> and <code>dolt_hashof_db()</code> values for
+databases built independently through the CLI and through the package.</p>
+<p>A handful of behaviours only surfaced once real code exercised them. They are
+recorded here because each one is a trap for the next person:</p>
+<ul>
+<li>
+<p><strong><code>dolt_commit()</code> ends the enclosing SQL transaction.</strong> Any R-side flag
+tracking transaction state goes stale the moment it is called, so the backend
+reads <code>sqlite3_get_autocommit()</code> instead.
+<em>Changed in DoltLite 0.51 (noted 2026-11):</em> the transaction is now left
+open. <code>doltliter</code> reopens one the engine closed, so both versions behave the
+0.51 way; reading SQLite’s own state remained the right design.</p>
+</li>
+<li>
+<p><strong>A conflicting merge in autocommit mode is rolled back whole</strong>, and DoltLite
+reports the conflict as a SQL <em>error</em> rather than a return value — in both
+autocommit and transaction modes. <code>dolt_merge()</code> therefore distinguishes the
+two by checking whether conflicts actually survived.</p>
+</li>
+<li>
+<p><strong><code>dolt_blame_&lt;table&gt;</code> requires a primary key.</strong> There is no stable row
+identity to attribute changes to without one, and <code>dbWriteTable()</code>’s default
+<code>CREATE TABLE</code> declares no key.</p>
+</li>
+<li>
+<p><strong>Commit hashes cover the commit timestamp</strong>, so they are not reproducible
+across two independently built databases. <code>dolt_hashof_table()</code> and
+<code>dolt_hashof_db()</code> are, which is what makes them usable as a golden file.</p>
+</li>
+<li>
+<p><strong><code>dolt_config()</code> is per connection and not persisted</strong>, which also means a
+CLI comparison must pipe its whole script through a single process.</p>
+</li>
+<li>
+<p><strong>DoltLite bundles its own zlib</strong>: linking needs neither <code>-lz</code> nor
+<code>-lpthread</code> on Linux, only <code>-lm</code>. <code>configure</code> still tries the longer
+candidate link lines, since older layouts and static archives may want them.</p>
+</li>
+<li>
+<p><strong>Never put an extensionless file in a directory that is on the include
+path.</strong> <code>tools/vendor_amalgamation.R</code> originally wrote the version stamp to
+<code>src/doltlite/VERSION</code>, and <code>configure</code> puts that directory on the include
+path with <code>-I./doltlite</code>. macOS filesystems are case-insensitive, so libc++’s
+<code>#include &lt;version&gt;</code> – reached from <code>&lt;cstddef&gt;</code>, itself reached from
+<code>&lt;set&gt;</code> – resolved to that stamp and clang tried to compile <code>v0.50.3</code> as
+C++. It only bit macOS + vendor: Linux is case-sensitive, libstdc++ does not
+chain <code>&lt;version&gt;</code> from <code>&lt;cstddef&gt;</code>, and the macOS ARM job uses the prebuilt
+library so the file is not there at all. The stamp is now
+<code>doltlite_version.txt</code>.</p>
+</li>
+<li>
+<p><strong>dbplyr’s SQLite translation reads the SQLite version from RSQLite</strong>, and
+builds that table lazily, so a missing RSQLite fails at query-render time
+rather than at dialect construction. The backend checks for RSQLite up front
+and degrades to dbplyr’s default translation rather than taking a hard
+dependency on another SQLite backend.</p>
+</li>
+</ul>
+<h3 id="sec:known-trade-off-the-vendored-amalgamation-trips-r-s-pragma-check"><span class="section-number">9.1</span> Known trade-off: the vendored amalgamation trips R’s pragma check</h3>
+<p><code>R CMD check --as-cran</code> on a tree carrying the amalgamation reports:</p>
+<pre><code>* checking pragmas in C/C++ headers and code ... WARNING
+File which contains non-portable pragma(s)
+  'src/doltlite/doltlite.c'
+File which contains pragma(s) suppressing diagnostics:
+  'src/doltlite/doltlite.c'
+</code></pre>
+<p>This is accurate: DoltLite’s generated amalgamation does suppress compiler
+diagnostics, as SQLite’s own amalgamation does. <code>tools:::.check_pragmas()</code>
+scans <code>src/</code> and <code>inst/include</code> recursively for
+<code>#pragma (GCC|clang) diagnostic ignored</code> and for a list of non-portable
+warning names, and there is no environment variable to switch it off.</p>
+<p>It cannot be fixed from this side without editing third-party generated
+source, which would be worse than the warning. Three consequences:</p>
+<ul>
+<li><strong>CI</strong>: the vendor jobs run with <code>error-on: error</code> rather than the default
+<code>error-on: warning</code>, since otherwise a warning that is not this package’s to
+fix would fail them. A guard step then rejects any <em>other</em> warning, so this
+is not a blanket amnesty.</li>
+<li><strong>CRAN</strong>: a submission shipping the amalgamation will carry this warning and
+will need it explained in the submission comments. That is the price of the
+no-network install path; the <code>system</code> and <code>download</code> strategies do not
+trigger it, because the engine arrives prebuilt with no C sources to scan.</li>
+<li>It is a WARNING, not an ERROR, and it does not affect the built package.</li>
+</ul>
+<h3 id="sec:known-trade-off-installed-size"><span class="section-number">9.2</span> Known trade-off: installed size</h3>
+<p>Statically linking <code>libdoltlite.a</code> (38 MB on disk, ~19 MB linked) makes the
+installed package about 19 MB, which <code>R CMD check</code> flags as a NOTE. That is
+inherent to embedding the engine, and is the same trade RSQLite makes with
+<code>sqlite3.c</code>; linking the shared library instead would shrink the package but
+move the problem to runtime library resolution.</p>
+
+</article>
+</main>
+<footer><div class="flex-col">
+<p>Developed by Cathal Byrne</p>
+<p>Site built with <a href="https://github.com/yihui/litedown">litedown</a> v1.0.22</p>
+</div></footer>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/sidenotes.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/toc-highlight.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/copy-button.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/heading-anchor.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/pages.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/nav-highlight.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@xiee/utils@1.16.8/js/link-functions.min.js" defer></script>
+</body>
+</html>
